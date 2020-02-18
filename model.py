@@ -37,6 +37,9 @@ def add_to_color(hex_color,amount):
     return hex(new_value).lstrip("0x")
     
 #TODO nasledjuju iksustvo deepcopy
+#TODO robustness pustamo nepametne samo, i dobijamo rezultate. Koji je ucinak, fitness funkcija
+#U ovom glavnom brisemo glupave, i onda preko parametra mogu da imaju 0 memoriju, 0 memoriju do 2
+# agente mozemo da pustimo kojima je samo memorija nula
         
 class CancerCell(Cell):
     def __init__(self,unique_id,model,value):
@@ -89,6 +92,9 @@ class CureAgent(Agent):
         self.radoznalost = radoznalost
 
 
+    
+
+
     def step(self):
         self.move()
         self.eat_or_not()
@@ -127,7 +133,7 @@ class CureAgent(Agent):
 
 #TODO ogranicenje memorije,
 # TODO proverava da li je u memoriji
-
+#TODO mozda nam nije potreban smart cure, vec da imamo memoriju od 0 pa na dalje
 class SmartCureAgent(CureAgent):
     def __init__(self,unique_id,model,speed,radoznalost):
         super(SmartCureAgent,self).__init__(unique_id,model,speed,radoznalost)
@@ -138,8 +144,6 @@ class SmartCureAgent(CureAgent):
         r = self.color[1:3]
         b= self.color[5:] #napravi ovo da bude neka funkcija u parent klasi TODO
         self.color = "#{}{}{}".format(r,add_to_color(g,-(speed*5)),b)
-
-        #TODO
 
     def eat_function(self,celija,_):
         """Samo je ovo drugcije u odnosu na pretka"""
