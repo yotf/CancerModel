@@ -6,10 +6,11 @@ import math
 
 KOLICINA_CELIJA = 320
 DIMENZIJA_TABLE = math.ceil(math.sqrt(KOLICINA_CELIJA*4))
-BROJ_LEKOVA = 50
+BROJ_LEKOVA = 100
 #RADOZNALOST_LEKOVA = 0.05 #bice random choice
 eat_values = {CancerCell.__class__:1,HealthyCell.__class__:-1,CancerStemCell.__class__:5}
 VEROVATNOCA_MUTACIJE = 0.1 #TODO za sad samo rak mutira, ne zdrave celije
+RADOZNALOST_LEKOVA = 1 #ovo se mnozi sa verovatnocom internalizacije
 #KORACI_EVOLUCIJE = 10 TODO
 #MAX_ENERGY = 50 #TODO ubaciti
 
@@ -19,7 +20,7 @@ def agent_portrayal(agent):
                 "Filled":"true",
                 "Layer":1,
                 "Color":agent.color,
-                "r":1
+                "r":agent.size
                  }
     return portrayal
 
@@ -45,7 +46,7 @@ chart_rad = ChartModule([{"Label": "RadoznalostSum",
 
 server = ModularServer(CancerModel,[grid,chart,chart_speed,chart_smart,chart_rad],"Cancer Model",
                     {"cancer_cells_number":KOLICINA_CELIJA,"cure_number":BROJ_LEKOVA,
-                     "eat_values":eat_values,"verovatnoca_mutacije":VEROVATNOCA_MUTACIJE})
+                     "eat_values":eat_values,"verovatnoca_mutacije":VEROVATNOCA_MUTACIJE,"radoznalost":RADOZNALOST_LEKOVA})
 server.port = 8523
 server.launch()
 
