@@ -4,11 +4,11 @@ from mesa.visualization.ModularVisualization import ModularServer
 
 import math
 
-KOLICINA_CELIJA = 320
+KOLICINA_CELIJA = 300
 DIMENZIJA_TABLE = math.ceil(math.sqrt(KOLICINA_CELIJA*4))
-BROJ_LEKOVA = 100
+BROJ_LEKOVA = 500
 #RADOZNALOST_LEKOVA = 0.05 #bice random choice
-eat_values = {CancerCell.__class__:1,HealthyCell.__class__:-1,CancerStemCell.__class__:5}
+eat_values = {CancerCell:1,HealthyCell:-1,CancerStemCell:5}
 VEROVATNOCA_MUTACIJE = 0.1 #TODO za sad samo rak mutira, ne zdrave celije
 RADOZNALOST_LEKOVA = 1 #ovo se mnozi sa verovatnocom internalizacije
 #KORACI_EVOLUCIJE = 10 TODO
