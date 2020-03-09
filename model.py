@@ -36,7 +36,6 @@ class Cell(Agent):
         print( "%s:  " %self.unique_id+" ".join(map(str,args))+"XXX")
 
     def grow(self):
-        self.xprint("growng")
         n = self.model.grid.get_neighborhood(self.pos,moore=True,include_center = False)
         for pos in n:
             if self.model.grid.is_cell_empty(pos):
@@ -62,7 +61,6 @@ def get_rgb_from_hex(hex_rgb):
 def add_to_color(hex_color,amount):
     minn = 0
     maxn =255
-    print(hex_color)
     new_value = int(hex_color,16)+amount
     new_value = minn if new_value < minn else maxn if new_value > maxn else new_value
     return hex(new_value).lstrip("0x")
@@ -78,10 +76,10 @@ class CancerCell(Cell):
         self.points_if_eaten = value
     def stress(self):
         mutate = self.random.choices(population=[True,False],weights=[0.1,0.9])[0]
-        print("MUTATE")
-        print(mutate)
-        self.color = self.color if not mutate else self.mutate_color(self.color)
-        print(self.color)
+        try:
+            self.color = self.color if not mutate else self.mutate_color(self.color)
+        except ValueError:
+            self.color = "#000000"
 
 
     def xprint(self,*args):
@@ -89,9 +87,7 @@ class CancerCell(Cell):
     
 
     def mutate_color(self,color_hex,by=5):
-        print(color_hex)
         r,g,b = get_rgb_from_hex(color_hex)
-        print (r,g,b)
         r,g,b = [add_to_color(c,-20) for c in [r,g,b]]
         return "#{}{}{}".format(r,g,b)
 
@@ -119,32 +115,41 @@ class CureAgent(Agent):
     STANDING_ON = "standing_on"
     ASSOCIATED_2 = "associated2"
     ASSOCIATED_1 = "associated1"
+    probabilities_range = np.arange(0,1,0.1)
+    memory_range = [0,1,2,3] #TODO da li je max 3 ?
 
     def xprint(self,*args):
+        return #TODO remove for logs 
         print( "%s:  " %self.unique_id+" ".join(map(str,args)))
     
-    def __init__(self,unique_id,model,speed,radoznalost,Pa,Pd,Pi,memory_size,memorija=None):
+    def __init__(self,unique_id,model,speeds,radoznalost=1): 
         super(CureAgent,self).__init__(unique_id,model)
+        self.speeds = speeds
         self.step_functions = {self.MOVING_STATE:self.step_move,
                       self.STANDING_ON:self.step_standing,
                       self.ASSOCIATED_1:self.step_associated1,
                       self.ASSOCIATED_2:self.step_associated2}
-        self.memorija = FixSizeOrderedDict(max=memory_size) if memorija is None else memorija
         self.points = 0
-        original_color = "#ffd700"
-        r,g,b = get_rgb_from_hex(original_color)
-        self.color = "#{}{}{}".format(r,add_to_color(g,-(speed*5)),b)
+        self.original_color = "#ffd700"
         self.size =0.2
-        self.energy = np.inf
-        self.speed = speed
+#        self.energy = np.inf
         self.radoznalost = radoznalost
-        self.memory_size = memory_size
         self.state = self.MOVING_STATE
-        self.Pa = Pa #TODO
-        self.Pd = Pd
-        self.Pi = Pi
+        self.initialize_variables()
+
+
+    def initialize_variables(self):
+        self.Pi,self.Pd,self.Pa  = [self.random.choice(self.probabilities_range) for i in range(3)]
+        self.speed = self.random.choice(self.speeds)
+        self.memory_size = self.random.choice(self.memory_range) #TODO da li je Ok da kad mutira gubi memoriju? 
+        self.memorija = FixSizeOrderedDict(max=self.memory_size)
+        r,g,b = get_rgb_from_hex(self.original_color)
+        self.color = "#{}{}{}".format(r,add_to_color(g,-(self.speed*5)),b)
+        self.represent_self()
+
+    def represent_self(self):
         self.xprint("My characteristcs are:")
-        self.xprint("Speed: %s   Memory Size : %s   (Pa,Pd,Pi): (%s,%s,%s)" %(speed,memory_size,Pa,Pd,Pi))
+        self.xprint("Speed: %s   Memory Size : %s   (Pa,Pd,Pi): (%s,%s,%s)" %(self.speed,self.memory_size,self.Pa,self.Pd,self.Pi))
 
     def check_for_cells(self):
         cells = [f for f in self.model.grid.get_cell_list_contents([self.pos]) if isinstance(f,Cell)]
@@ -215,24 +220,27 @@ class CureAgent(Agent):
     def try_to_associate(self,cell):
         """Tries to associate and refreshes memory with cell"""
 
-        assert(self.radoznalost<=1 and self.radoznalost>=0)
+#        assert(self.radoznalost<=1 and self.radoznalost>=0)
         mem = self.memorija.get(cell.color,False)
+        self.memorize(cell)
         if not mem:
+            #Pa = self.Pa 
             Pa = self.radoznalost*self.Pa #TODO da li je OK ovako?
-            self.xprint("Not found in memory,probability Pa is %s"%Pa)
+            self.xprint("Cell not recognized,probability Pa is %s"%Pa)
         elif mem>0:
             Pa = self.Pa
             self.xprint ("Found in memory")
         elif mem<0:
             self.xprint("Healthy cell recognized!")
             Pa= 0
-        self.memorize(cell)
         self.xprint("Trying to associate with probability %s from %s state" %(Pa,self.state))
         associated = self.random.choices(population = [True,False],weights=[Pa,1-Pa])[0]
         self.xprint("It is %s that I will associate" %associated)
         return associated
 
     def memorize(self,cell):
+        if self.memory_size==0: #jbg TODO 
+            return
         self.xprint("Memorizing cell")
         self.xprint("memory before")
         self.xprint(self.memorija)
@@ -252,34 +260,106 @@ class CureAgent(Agent):
             cell.stress()
         return internalized
 
+    def mutate(self):
+        self.xprint("I am mutating")
+        stara_memorija = self.memorija
+        self.xprint("Old memory:")
+        self.xprint(stara_memorija)
+        self.initialize_variables()
+        for key,value in stara_memorija.items():
+            self.memorija[key] = value
+        self.xprint("New memory (size: %s) : " %self.memory_size)
+        self.xprint(self.memorija)
+        #TODO copy memory
+        
+        
+
 
     def kill_self(self):
         self.model.schedule.remove(self)
         self.model.grid.remove_agent(self)
 
+    def copy(self):
+        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds)
+        n.speed = self.speed
+        n.Pa = self.Pa
+        n.Pi = self.Pi
+        n.Pd = self.Pd
+        n.memorija = self.memorija.copy()
+        n.memory_size = self.memory_size
+        n.color = self.color
+        return n
+        
 
+class InfiniteFixedCureAgent(CureAgent):
+    def __init__(self,unique_id,model,speeds):
+        super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds)
+        self.probabilities_CC = [0.7,0.5,0.7]
+        self.probabilities_HC = [0.5,0.7,0.5]
+        self.memorija = None
+        self.memory_size = 0
+        self.Pi,self.Pa,self.Pd = None
 
+    def try_to_associate(self,cell):
+        points = cell.points_if_eaten
+        self.xprint(" This cell is a %s " %("Cancer Cell" if points>0 else "Healthy Cell"))
+        self.Pa,self.Pd,self.Pi = self.probabilities_CC if points>0 else self.probabilities_HC
+        self.xprint("Trying to associate with probability %s from %s state" %(self.Pa,self.state))
+        associated = self.random.choices(population = [True,False],weights=[self.Pa,1-self.Pa])[0]
+        self.xprint("It is %s that I will associate" %associated)
+        return associated
+
+    def mutate(self):
+        self.speed = self.random.choice(self.speeds)
+        self.represent_self()
+        
+
+    def copy(self):
+        self.xprint("COPYING MYSELF")
+        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds)
+        n.speed = self.speed
+        n.color = self.color
+        return n
+
+class MutationBlindNanoAgent(CureAgent):
+    def __init__(self,unique_id,model,speeds):
+        super(MutationBlindNanoAgent,self).__init__(unique_id,model,speeds)
+        self.radoznalost = 0 
+
+    def memorize(self,cell):
+        self.xprint("Memorizing %s with color %s" %(cell.__class__,cell.color))
+        known_colors = ["#a4d1a4",
+         "#d3d3d3",
+        "#ff1111"]
+        if cell.color in known_colors:
+            self.xprint("Can memorize cell")
+            super().memorize(cell)
+            self.radoznalost = 1
+        else:
+            self.radoznalost = 0 # ne svidja mi se logika ovoga, al ajde
+            self.xprint("Cant memorize cell")
 
 
 import math
 import uuid
 class CancerModel(Model):
-    Pi_range = np.arange(0,1,0.1)
-    Pd_range = np.arange(0,1,0.1)
-    Pa_range = np.arange(0,1,0.1)
-    memory_range = [0,1,2,3] #TODO da li je max 3 ?
-    def __init__(self,cancer_cells_number,cure_number,eat_values, verovatnoca_mutacije,radoznalost):
+
+    def xprint(self,*args):
+        return
+        print( "CANCER MODEL:  " +" ".join(map(str,args)))
+    def __init__(self,cancer_cells_number,cure_number, verovatnoca_mutacije,radoznalost,cure_agent_type):
+        self.xprint("STARTING SIMULATION !!!")
         self.counter = 0
-
-
+        eat_values =  {CancerCell:1,HealthyCell:-1,CancerStemCell:5}
+        assert(issubclass(cure_agent_type,CureAgent))
         self.cure_number = cure_number
         self.datacollector = DataCollector(
         model_reporters = {"FitnessFunction":fitness_funkcija,
-                           "SpeedSum":overall_speed,"SmartMedicine":num_of_smart_medicine,
-                           "RadoznalostSum":radoznalost_sum  })
+                           "SpeedSum":overall_speed,"OverallMemoryCapacity":memory_size_all
+                            })
         grid_size = math.ceil(math.sqrt(cancer_cells_number*4))
         self.grid = MultiGrid(grid_size,grid_size,False)
-        self.speeds = list(range(grid_size//2)) 
+        self.speeds = list(range(1,grid_size//2))
         poss = self.generate_cancer_cell_positions(grid_size,cancer_cells_number)
         num_CSC = math.ceil(percentage(1,cancer_cells_number))
         pos_CSC = [self.random.choice(poss) for i in range(num_CSC)]
@@ -291,18 +371,8 @@ class CancerModel(Model):
             self.grid.place_agent(c,pos)
             self.schedule.add(c)
         for i in range(cure_number):
-            #pos = self.grid.find_empty()
             pos = (0,0)
-            Pi = self.random.choice(self.Pi_range)
-            Pd = self.random.choice(self.Pd_range)
-            Pa = self.random.choice(self.Pa_range)
-            print("VEROVATNOCE")
-            print(Pi,Pd,Pa)
-            print("memorija i brzina")
-            speed = self.random.choice(self.speeds)
-            memory_size = self.random.choice(self.memory_range)
-            print(memory_size,speed)
-            a = CureAgent(uuid.uuid4(),self,speed = speed,radoznalost=radoznalost,Pi=Pi,Pd=Pd,Pa=Pa,memory_size=memory_size) 
+            a = cure_agent_type(uuid.uuid4(),self,speeds = self.speeds) 
             self.grid.place_agent(a,pos)
             self.schedule.add(a)
 
@@ -339,24 +409,23 @@ class CancerModel(Model):
         self.duplicate_agents(prvi)
 
     def mutate_agents(self,agents):
-        print("Mutating middle agents")
+        self.xprint("Mutating middle agents")
         for a in agents:
-            a.Pi = self.random.choice(self.Pi_range)
-            a.Pd = self.random.choice(self.Pd_range)
-            a.Pa = self.random.choice(self.Pa_range)
-            a.speed = self.random.choice(self.speeds)
-            a.memory_size = self.random.choice(self.memory_range)
+            a.mutate()
     def remove_agents(self,agents):
         for a in agents:
             self.schedule.remove(a)
             self.grid.remove_agent(a)
     def duplicate_agents(self,agents):
-        from copy import deepcopy
         for a in agents:
-            a_new = a.__class__(uuid.uuid4(),model=self,speed = a.speed,radoznalost = a.radoznalost,Pa=a.Pa,Pd=a.Pd,Pi=a.Pi,memorija=a.memorija,memory_size = a.memory_size) 
+            a_new = a.copy()
             self.grid.place_agent(a_new,(1,1))
             self.schedule.add(a_new)
 
+
+
+        
+        
     def kill_cell(self,cell):
         self.grid.remove_agent(cell)
         self.schedule.remove(cell)
@@ -383,7 +452,10 @@ def fitness_funkcija(model):
     CSCs = [c for c in model.schedule.agents if isinstance(c,CancerStemCell)]
     CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell)]
     HCs = [c for c in model.schedule.agents if isinstance(c,HealthyCell)]
-    FF = len(HCs)/((r*len(CSCs)+ len(CCs) ))
+    try:
+        FF = len(HCs)/((r*len(CSCs)+ len(CCs) ))
+    except ZeroDivisionError:
+        FF = len(HCs)
     return FF
 
 def overall_speed(model):
@@ -391,14 +463,9 @@ def overall_speed(model):
     speeds = 0
     for c in cures:
         speeds+= c.speed
-
     return speeds
 
-def num_of_smart_medicine(model):
-    return sum([len(m.memorija) for m in model.schedule.agents if isinstance(m,CureAgent)])
-
-def radoznalost_sum(model):
-    return sum([c.radoznalost for c in model.schedule.agents if isinstance(c,CureAgent)])
-
+def memory_size_all(model):
+    return sum([m.memory_size for m in model.schedule.agents if isinstance(m,CureAgent)])
 
 

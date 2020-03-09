@@ -8,7 +8,7 @@ KOLICINA_CELIJA = 300
 DIMENZIJA_TABLE = math.ceil(math.sqrt(KOLICINA_CELIJA*4))
 BROJ_LEKOVA = 500
 #RADOZNALOST_LEKOVA = 0.05 #bice random choice
-eat_values = {CancerCell:1,HealthyCell:-1,CancerStemCell:5}
+#eat_values = {CancerCell:1,HealthyCell:-1,CancerStemCell:5}
 VEROVATNOCA_MUTACIJE = 0.1 #TODO za sad samo rak mutira, ne zdrave celije
 RADOZNALOST_LEKOVA = 1 #ovo se mnozi sa verovatnocom internalizacije
 #KORACI_EVOLUCIJE = 10 TODO
@@ -34,19 +34,17 @@ chart_speed = ChartModule([{"Label": "SpeedSum",
                       "Color": "black"}],
                     data_collector_name='datacollector')
 
-chart_smart = ChartModule([{"Label": "SmartMedicine",
-                      "Color": "black"}],
-                    data_collector_name='datacollector')
-
-chart_rad = ChartModule([{"Label": "RadoznalostSum",
+chart_smart = ChartModule([{"Label": "OverallMemoryCapacity",
                       "Color": "black"}],
                     data_collector_name='datacollector')
 
 
 
-server = ModularServer(CancerModel,[grid,chart,chart_speed,chart_smart,chart_rad],"Cancer Model",
+
+server = ModularServer(CancerModel,[grid,chart,chart_speed,chart_smart],"Cancer Model",
                     {"cancer_cells_number":KOLICINA_CELIJA,"cure_number":BROJ_LEKOVA,
-                     "eat_values":eat_values,"verovatnoca_mutacije":VEROVATNOCA_MUTACIJE,"radoznalost":RADOZNALOST_LEKOVA})
+                     "verovatnoca_mutacije":VEROVATNOCA_MUTACIJE,"radoznalost":RADOZNALOST_LEKOVA,
+                     "cure_agent_type":CureAgent})
 server.port = 8523
 server.launch()
 
