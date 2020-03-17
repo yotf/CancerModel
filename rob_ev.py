@@ -48,15 +48,16 @@ def get_maxA_for_steps_and_parameter(all_results_for_samplesize,steps,parameter)
 
 
 
-def run_model_and_get_results(sample_size,nanoagent_type):
+def run_model_and_get_results(sample_size,nanoagent_type,steps):
     results = []
+    print(steps)
     print("Sample size is:   %s" %sample_size)
     for i in range(sample_size):
         print("Running model : %s" %i)
         model = CancerModel(cancer_cells_number=CC_NUM,cure_number = NA_NUM,
                             verovatnoca_mutacije=CANCER_MUTATION_PROBABILITY,
                             radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type)
-        for i in range(MAX_STEPS):
+        for i in range(steps):
             model.step()
         rez = model.datacollector.get_model_vars_dataframe()
         results.append(rez)
@@ -67,7 +68,7 @@ def check_conistency(nanoagent_type,PARAMETER = "FitnessFunction"):
     for ss in sample_sizes:
         all_results_for_samplesize = []
         for i in range(20):
-            results = run_model_and_get_results(ss,nanoagent_type)
+            results = run_model_and_get_results(ss,nanoagent_type,MAX_STEPS)
             all_results_for_samplesize.append(results)
         for steps in brojevi_koraka:
             maxA = get_maxA_for_steps_and_parameter(all_results_for_samplesize,steps,PARAMETER)

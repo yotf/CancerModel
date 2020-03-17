@@ -1,9 +1,23 @@
+
 from mesa import Agent, Model
 from mesa.space import MultiGrid
 from mesa.time import RandomActivation
 from mesa.datacollection import DataCollector
 import numpy as np
 from collections import OrderedDict
+
+
+HEALTHY_CELL_COLOR = "#a4d1a4"
+CANCER_CELL_COLOR =   "#d3d3d3"
+CANCER_STEM_CELL_COLOR = "#ff1111"
+RANDOM_COLORS = ["#ef04f6","#01fca8","#8b901d","#a12dfa","#275665","#2074d5","#305126",
+                          "#5704a7","#199d29","#094e34","#0fb97a","#9a38bc","#9c7529","#a68086","#16e8d7",
+                          "#30ed79","#25aeb0","#82b183","#f6018b","#a75024"]
+CANCER_MUTATION_COLORS = [CANCER_CELL_COLOR,"#ef04f6","#01fca8","#8b901d","#a12dfa","#275665","#2074d5","#305126",
+                          "#5704a7","#199d29","#094e34","#0fb97a","#9a38bc","#9c7529","#a68086","#16e8d7",
+                          "#30ed79","#25aeb0","#82b183","#f6018b","#a75024"]+ RANDOM_COLORS*100
+
+                          
 
 def nano_agent_decorator(f):  
     def log_f_as_called():
@@ -46,7 +60,7 @@ class Cell(Agent):
 class HealthyCell(Cell):
     def __init__(self,unique_id,model,value):
         super().__init__(unique_id,model)
-        self.color="#a4d1a4"
+        self.color=HEALTHY_CELL_COLOR
         self.points_if_eaten = value
         
     def stress(self):
@@ -72,24 +86,25 @@ def add_to_color(hex_color,amount):
 class CancerCell(Cell):
     def __init__(self,unique_id,model,value):
         super().__init__(unique_id,model)
-        self.color = "#d3d3d3"
+        self.mutation_count = 0 
+        self.color = CANCER_CELL_COLOR
         self.points_if_eaten = value
     def stress(self):
         mutate = self.random.choices(population=[True,False],weights=[0.1,0.9])[0]
-        try:
-            self.color = self.color if not mutate else self.mutate_color(self.color)
-        except ValueError:
-            self.color = "#000000"
-
+        self.xprint("It is %s that I mutated" %(mutate))
+        self.mutation_count +=0 if not mutate else 1
+        self.xprint("I have mutated %s times" %self.mutation_count)
+        self.color = CANCER_MUTATION_COLORS[self.mutation_count]
 
     def xprint(self,*args):
+        return
         print( "%s:  " %self.unique_id+" ".join(map(str,args)))
     
 
-    def mutate_color(self,color_hex,by=5):
-        r,g,b = get_rgb_from_hex(color_hex)
-        r,g,b = [add_to_color(c,-20) for c in [r,g,b]]
-        return "#{}{}{}".format(r,g,b)
+    # def mutate_color(self,color_hex,by=5):
+    #     r,g,b = get_rgb_from_hex(color_hex)
+    #     r,g,b = [add_to_color(c,-20) for c in [r,g,b]]
+    #     return "#{}{}{}".format(r,g,b)
 
 
        # TODO mutiramo 5% srednjih, ili speed ili radoznalost za jedan stepen mislim da sve ide u random
@@ -106,7 +121,7 @@ class CancerCell(Cell):
 class CancerStemCell(CancerCell):
     def __init__(self,unique_id,model,value):
         super().__init__(unique_id,model,value)
-        self.color = "#ff1111"
+        self.color = CANCER_STEM_CELL_COLOR
         self.points_if_eaten = value
 
 
@@ -294,11 +309,10 @@ class CureAgent(Agent):
 class InfiniteFixedCureAgent(CureAgent):
     def __init__(self,unique_id,model,speeds):
         super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds)
-        self.probabilities_CC = [0.7,0.5,0.7]
-        self.probabilities_HC = [0.5,0.7,0.5]
-        self.memorija = None
+        self.probabilities_CC = [0.5,0.5,0.5]
+        self.probabilities_HC = [0.5,0.5,0.5]
         self.memory_size = 0
-        self.Pi,self.Pa,self.Pd = None
+        self.Pi,self.Pa,self.Pd = None,None,None
 
     def try_to_associate(self,cell):
         points = cell.points_if_eaten
@@ -355,8 +369,15 @@ class CancerModel(Model):
         self.cure_number = cure_number
         self.datacollector = DataCollector(
         model_reporters = {"FitnessFunction":fitness_funkcija,
-                           "SpeedSum":overall_speed,"OverallMemoryCapacity":memory_size_all
-                            })
+                           "SpeedSum":overall_speed,"OverallMemoryCapacity":memory_size_all,
+                           "PopulationHeterogenity":population_heterogenity,
+                           "MutationAmount":mutation_amount,
+                           "CancerStemCell Number":CSC_number,
+                           "CSC Specialized Agents":CSC_specialized_agents,
+                           "CancerHeterogenity": cancer_heterogenity
+
+                            },
+            agent_reporters={"Pi":get_Pi,"Pa":get_Pa,"Pd":get_Pd,"speed":get_speed})
         grid_size = math.ceil(math.sqrt(cancer_cells_number*4))
         self.grid = MultiGrid(grid_size,grid_size,False)
         self.speeds = list(range(1,grid_size//2))
@@ -367,12 +388,12 @@ class CancerModel(Model):
         self.running = True
         for i in range(cancer_cells_number):
             pos = poss[i]
-            c = CancerStemCell(uuid.uuid4(),self,value = eat_values[CancerStemCell]) if pos in pos_CSC else CancerCell(i,self,value=eat_values[CancerCell])
+            c = CancerStemCell("CANCER_STEM_CELL-"+str(uuid.uuid4()),self,value = eat_values[CancerStemCell]) if pos in pos_CSC else CancerCell("CANCER_CELL-"+str(uuid.uuid4()),self,value=eat_values[CancerCell])
             self.grid.place_agent(c,pos)
             self.schedule.add(c)
         for i in range(cure_number):
             pos = (0,0)
-            a = cure_agent_type(uuid.uuid4(),self,speeds = self.speeds) 
+            a = cure_agent_type("NANO_AGENT-"+str(uuid.uuid4()),self,speeds = self.speeds) 
             self.grid.place_agent(a,pos)
             self.schedule.add(a)
 
@@ -467,5 +488,89 @@ def overall_speed(model):
 
 def memory_size_all(model):
     return sum([m.memory_size for m in model.schedule.agents if isinstance(m,CureAgent)])
+
+
+def cancer_heterogenity(model):
+    CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell) ]
+    mc = [c for c in CCs if c.mutation_count>0]
+    print("Number of CCs,Number of mutated CCs")
+    print(len(CCs),len(mc))
+    try:
+        return len(CCs)/len(mc)
+    except ZeroDivisionError:
+        return 0 
+
+    
+
+def population_heterogenity(model):
+    """ Returns the overall number of new colors in memory """
+    sve_memorije = [list(a.memorija.keys()) for a in model.schedule.agents if isinstance(a,CureAgent)]
+    all_colors_in_memories = sum(sve_memorije,[])
+    unique_colors = set(all_colors_in_memories)
+    print("memorije,unique")
+    print(unique_colors)
+    print(len(sve_memorije),len(unique_colors))
+    return len(unique_colors)/len(sve_memorije)
+
+    # het = 0
+    # NAs = [a for a in model.schedule.agents if isinstance(a,CureAgent)]
+    # for a in NAs:
+    #     if a.memorija:
+    #         for color in a.memorija.keys():
+    #             if color not in [HEALTHY_CELL_COLOR,CANCER_CELL_COLOR,CANCER_STEM_CELL_COLOR]:
+    #                 het+=1
+    # return het
+
+def CSC_specialized_agents(model):
+    NAs = [a for a in model.schedule.agents if isinstance(a,CureAgent)]
+    num_of_CSC_in_memory = [True for a in NAs if CANCER_STEM_CELL_COLOR in a.memorija.keys()]
+    print("num of csc in memories")
+    print(num_of_CSC_in_memory)
+    print(len(num_of_CSC_in_memory))
+    return len(num_of_CSC_in_memory)
+    
+def CSC_number(model):
+    n = len([True for c in model.schedule.agents if isinstance(c,CancerStemCell)])
+    print("CSC number")
+    print(n)
+    return n
+    
+                
+            
+def mutation_amount(model):
+    """Returns the total of mutations of CCs"""
+    mutation_counts = [c.mutation_count for c in model.schedule.agents if isinstance(c,CancerCell)]
+    print("mutation counts")
+    print(mutation_counts)
+    return sum(mutation_counts)
+
+def get_Pi(agent):
+    try:
+        return agent.Pi
+    except AttributeError:
+        return None
+
+def get_Pa(agent):
+    try:
+        return agent.Pa
+    except AttributeError:
+        return None
+    
+def get_Pd(agent):
+    try:
+        return agent.Pd
+    except AttributeError:
+        return None
+
+def get_speed(agent):
+    try:
+        return agent.speed
+    except AttributeError:
+        return None
+
+
+
+
+
 
 
