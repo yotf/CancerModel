@@ -1,4 +1,68 @@
+# 1. Introduce tumour heterogeneity by randomly assigning to CC/CSC
+# subpopulations ability to reduce the rate of attachment/entrance of NAs
+# into them. Also, they should be able to reduce the killing probability
+# of NAs.
+# Implementation:
+# - all tumour cells have additional property 'modifiers' which could be a
+# list of 5 numeric values (corresponding to the association,
+# disassociation, entrance, killing probability, stop-division
+# probability). If numeric value =0 then NP's rate is not modified, if it
+# is not=0 then it modifies corresponding NP's rate.
+# - in general, CSC should have higher values of modifiers for killing and
+# division probabilities (so far it hasn't been observed that CSC are able
+# to selectively inhibit entrance of NA into them)
 
+#1. stavljam da se bira jedan od modifier-a, tako sto se izabere random
+#ime
+# i onda se indeksira to, i izabere se
+# posle NA ce traziti odredjeni indeks.
+
+
+# 2. Differentiate the antitumour effect of NAs into cytostatic (growth
+# inhibition) and cytotoxic.
+# Implementation:
+# - after internalization, we should add one more step where internalized
+# NA can either try to block cell division with some probability or kill
+# the cell with some probability
+
+
+# 3. Divide host toxicity of NAs into three categories: nonselective,
+# partially selective and strictly selective.
+# Implementation:
+# - we already have nonselective and strictly selective. However, strict
+# selectivity is more an ideal case than reality. Therefore, we should
+# replace current binary model (recognize=>try to enter / don't recognize
+# => no entrance) with more continuous one:
+#         a. At the beginning of the simulation NA’s knowledge of the environment
+# is blank so they do not recognize any type of cell-agents (same as now).
+#         b. Even if they do not recognize cell, they can try to associate/enter
+# but with much lower probability
+
+# 4. Make the role of CSC more prominent by making them more
+# drug-resistant and able to detach tumour and leave it (simplified
+# metastasis).
+# Implementation:
+# - maybe add as an additional numeric property "attachment": at each time
+# step, this numeric values is compared to a random number and if the
+# random number is smaller than 'attachment' value, CSC disappear (leave
+# tumour) and is counted somewhere as metastasis score += 1
+
+
+
+# 5. reduce the probability of receptor mutations to really small values.
+# Even if they mutate NA can enter cells (point 3 above). Remove
+# stress-induced mutation (experimental data on that are controversial, so
+# for now we should leave it out).
+
+# da li je mutaciju ostavljamo kad je stress, ili samo svaki put? TODO
+
+#Ok, ovo sve moze sutra, bez problema. samo ga pusti i gledaj logove
+
+
+# In summary, during simulation NA agents learn to:
+#   - recognize tumour cells
+#   - learn to choose between cell killing and division stopping
+#   - tune up association/disassociation/internalization
 from mesa import Agent, Model
 from mesa.space import MultiGrid
 from mesa.time import RandomActivation
@@ -17,7 +81,6 @@ CANCER_MUTATION_COLORS = [CANCER_CELL_COLOR,"#ef04f6","#01fca8","#8b901d","#a12d
                           "#5704a7","#199d29","#094e34","#0fb97a","#9a38bc","#9c7529","#a68086","#16e8d7",
                           "#30ed79","#25aeb0","#82b183","#f6018b","#a75024"]+ RANDOM_COLORS*100
 
-                          
 
 def nano_agent_decorator(f):  
     def log_f_as_called():
@@ -44,18 +107,13 @@ def percentage(percent, whole):
 class Cell(Agent):
     def __init__(self,unique_id,model,value=None):
         super().__init__(unique_id,model)
-        self.size=1
+        p_names = ["Pi","Pd","Pa","Pk","Psd"]
+        self.modifiers = dict.fromkeys(p_names,1)
 
     def xprint(self,*args):
         print( "%s:  " %self.unique_id+" ".join(map(str,args))+"XXX")
 
-    def grow(self):
-        n = self.model.grid.get_neighborhood(self.pos,moore=True,include_center = False)
-        for pos in n:
-            if self.model.grid.is_cell_empty(pos):
-                c = self.__class__(uuid.uuid4(),value=self.points_if_eaten,model=self.model)
-                self.model.grid.place_agent(c,pos)
-                self.model.schedule.add(c)
+
         
 class HealthyCell(Cell):
     def __init__(self,unique_id,model,value):
@@ -64,8 +122,7 @@ class HealthyCell(Cell):
         self.points_if_eaten = value
         
     def stress(self):
-        pass # da li i ona treba da mutira??
-
+        pass
 def get_rgb_from_hex(hex_rgb):
     r = hex_rgb[1:3]
     g= hex_rgb[3:5]
@@ -79,26 +136,48 @@ def add_to_color(hex_color,amount):
     new_value = minn if new_value < minn else maxn if new_value > maxn else new_value
     return hex(new_value).lstrip("0x")
     
-#TODO nasledjuju iksustvo deepcopy
-#TODO robustness pustamo nepametne samo, i dobijamo rezultate. Koji je ucinak, fitness funkcija
 
         
 class CancerCell(Cell):
-    def __init__(self,unique_id,model,value):
+    def __init__(self,unique_id,model,value,has_modifiers):
         super().__init__(unique_id,model)
         self.mutation_count = 0 
         self.color = CANCER_CELL_COLOR
         self.points_if_eaten = value
-    def stress(self):
-        mutate = self.random.choices(population=[True,False],weights=[0.1,0.9])[0]
+        p_names = ["Pi","Pd","Pa","Pk","Psd"]
+        self.modifiers = dict.fromkeys(p_names,1)
+
+        if has_modifiers:
+            pn = self.random.choice(p_names)
+            self.modifiers[pn]=self.random.uniform(0.3,0.8) #TODO reci igoru
+        self.xprint("Initialized modifiers : %s" %self.modifiers)
+        self.stop_division =False
+
+    def xprint(self,*args):
+        print( "%s:  " %self.unique_id+" ".join(map(str,args)))
+
+    def step(self):
+        mutate = self.random.choices([True,False],[0.001,1-0.001])[0]
         self.xprint("It is %s that I mutated" %(mutate))
         self.mutation_count +=0 if not mutate else 1
         self.xprint("I have mutated %s times" %self.mutation_count)
         self.color = CANCER_MUTATION_COLORS[self.mutation_count]
+        
 
-    def xprint(self,*args):
-        return
-        print( "%s:  " %self.unique_id+" ".join(map(str,args)))
+    def grow(self):
+        if self.stop_division:
+            return
+        n = self.model.grid.get_neighborhood(self.pos,moore=True,include_center = False)
+        for pos in n:
+            if self.model.grid.is_cell_empty(pos):
+                c = self.__class__("CANCER_CELL-"+str(uuid.uuid4()),value=self.points_if_eaten,model=self.model,has_modifiers=False)
+                c.modifiers =self.modifiers
+                self.xprint("Duplicated myself, new cell has modifiers: %s" %c.modifiers)
+                self.xprint("I have modifiers: %s" %c.modifiers)
+                assert(c.modifiers==self.modifiers)
+                self.model.grid.place_agent(c,pos)
+                self.model.schedule.add(c)
+        
     
 
     # def mutate_color(self,color_hex,by=5):
@@ -119,10 +198,18 @@ class CancerCell(Cell):
 
 
 class CancerStemCell(CancerCell):
-    def __init__(self,unique_id,model,value):
-        super().__init__(unique_id,model,value)
+    def __init__(self,unique_id,model,value,has_modifiers):
+        super().__init__(unique_id,model,value,has_modifiers)
         self.color = CANCER_STEM_CELL_COLOR
         self.points_if_eaten = value
+        #samo obrnute verovatnoce TODO 
+        #TODO, oni novi agenti, ne znam kako su oni sa ovime - treba ih premisliti !!
+
+    def step(self):
+        super().step()
+        detach = self.random.choices(population=[True,False],weights=[0.20,0.80])[0]
+        if detach:
+            self.model.detach_stem_cell(self)
 
 
 class CureAgent(Agent):
@@ -130,20 +217,26 @@ class CureAgent(Agent):
     STANDING_ON = "standing_on"
     ASSOCIATED_2 = "associated2"
     ASSOCIATED_1 = "associated1"
+    INTERNALIZED_STATE = "internalized"
     probabilities_range = np.arange(0,1,0.1)
     memory_range = [0,1,2,3] #TODO da li je max 3 ?
+    STOP_DIVISION_AGENT = "STOP_DIVISION_AGENT"
+    KILLING_AGENT = "KILLING AGENT"
 
     def xprint(self,*args):
-        return #TODO remove for logs 
         print( "%s:  " %self.unique_id+" ".join(map(str,args)))
     
-    def __init__(self,unique_id,model,speeds,radoznalost=1): 
+    def __init__(self,unique_id,model,speeds,radoznalost): 
         super(CureAgent,self).__init__(unique_id,model)
         self.speeds = speeds
+        #on bira ovde koji je tip, i onda ce se to posle gledati
+        # if type=STOP_DIVISION: self.in
         self.step_functions = {self.MOVING_STATE:self.step_move,
                       self.STANDING_ON:self.step_standing,
                       self.ASSOCIATED_1:self.step_associated1,
-                      self.ASSOCIATED_2:self.step_associated2}
+                      self.ASSOCIATED_2:self.step_associated2,
+                        self.INTERNALIZED_STATE:self.step_internalized
+        }
         self.points = 0
         self.original_color = "#ffd700"
         self.size =0.2
@@ -153,14 +246,20 @@ class CureAgent(Agent):
         self.initialize_variables()
 
 
+
+
     def initialize_variables(self):
+        
         self.Pi,self.Pd,self.Pa  = [self.random.choice(self.probabilities_range) for i in range(3)]
         self.speed = self.random.choice(self.speeds)
-        self.memory_size = self.random.choice(self.memory_range) #TODO da li je Ok da kad mutira gubi memoriju? 
+        self.memory_size = self.random.choice(self.memory_range)
         self.memorija = FixSizeOrderedDict(max=self.memory_size)
+        self.type = self.random.choice([self.STOP_DIVISION_AGENT,self.KILLING_AGENT])
+     #   self.set_final_function_for_type()
         r,g,b = get_rgb_from_hex(self.original_color)
         self.color = "#{}{}{}".format(r,add_to_color(g,-(self.speed*5)),b)
         self.represent_self()
+
 
     def represent_self(self):
         self.xprint("My characteristcs are:")
@@ -170,6 +269,7 @@ class CureAgent(Agent):
         cells = [f for f in self.model.grid.get_cell_list_contents([self.pos]) if isinstance(f,Cell)]
         assert (len(cells)<=1)
         return cells
+
 
     
     def move(self):
@@ -189,16 +289,18 @@ class CureAgent(Agent):
         self.xprint("In moving state, about to move")
         self.xprint(self.state)
         self.move()
-        if self.check_for_cells():
-            self.xprint("Found cells going to standing on")
+        cells = self.check_for_cells()
+        if cells:
+            self.current_cell_id=cells[0].unique_id
+            self.xprint("Found cell %s going to standing on" %self.current_cell_id)
             self.state = self.STANDING_ON
             self.xprint(self.state)
 
     def step_standing(self):
         self.xprint("In standing state")
         self.xprint(self.state)
-        cells = self.check_for_cells() #TODO ima puno ponavljano - napraviti generecno ! 
-        if cells:
+        cells = self.check_for_cells() 
+        if cells and cells[0].unique_id==self.current_cell_id:
             self.xprint("Cell still here, will try to associate")
             cell = cells[0]
             associated = self.try_to_associate(cell)
@@ -212,25 +314,77 @@ class CureAgent(Agent):
         cells = self.check_for_cells()
         self.xprint("In A1 state")
         self.xprint("Will disassociate with %s probability"% self.Pd)
-        if cells:
+        if cells and cells[0].unique_id==self.current_cell_id:
             cell = cells[0]
-            self.state = self.random.choices(population=[self.MOVING_STATE,self.ASSOCIATED_2],weights=[self.Pd,1-self.Pd])[0]
+            disassociated = self.try_to_disassociate(cell)
+            self.state = self.MOVING_STATE if disassociated else self.ASSOCIATED_2
             self.xprint("I am entering %s state" %self.state)
         else:
             self.xprint("The cell was killed, moving on")
             self.state = self.MOVING_STATE
 
+    def try_to_disassociate(self,cell):
+        stay_attached_probability_modified = (1-self.Pd)*cell.modifiers["Pd"] 
+        self.xprint("Cell has Pd modifier: %s" %cell.modifiers["Pd"])
+        modified_Pd = (1-stay_attached_probability_modified)
+        self.xprint("Modified Pd: %s" %modified_Pd)
+        disassociated  = self.random.choices(population=[True,False],weights=[modified_Pd,stay_attached_probability_modified])[0]
+        self.xprint("It is %s that I disassociated " %disassociated)
+        return disassociated
+        
+
     def step_associated2(self):
         self.xprint("In A2 state")
         self.xprint(self.state)
         cells = self.check_for_cells()
-        if cells:
+        if cells and cells[0].unique_id==self.current_cell_id:
             cell = cells[0]
             internalized = self.try_to_internalize(cell)
-            self.state = self.MOVING_STATE if internalized else self.ASSOCIATED_1
+            self.state = self.INTERNALIZED_STATE if internalized else self.ASSOCIATED_1
         else:
             self.xprint("The cell was killed, moving on")
             self.state = self.MOVING_STATE
+
+
+    def step_internalized(self):
+        self.xprint("I have internalized")
+        self.xprint("I am agent of type %s" %self.type)
+        cells = self.check_for_cells()
+        if cells and cells[0].unique_id==self.current_cell_id:
+            cell = cells[0]
+            if self.type==self.KILLING_AGENT:
+                executed = self.try_to_kill(cell)
+            elif self.type==self.STOP_DIVISION_AGENT:
+                executed= self.try_to_stop_division(cell)
+            else:
+                assert(False)
+            
+            self.state = self.MOVING_STATE if executed else self.INTERNALIZED_STATE
+        else:
+            self.xprint("The cell was killed in meantime, moving on")
+            self.state = self.MOVING_STATE
+        
+
+    def try_to_kill(self,cell):
+        Pk = 0.10 #TODO za sada je fiksirano
+        self.xprint("Trying to kill")
+        killed = self.random.choices(population=[True,False],weights=[Pk,1-Pk])[0]
+        if killed:
+            self.model.kill_cell(cell)
+            self.points+=cell.points_if_eaten
+        self.xprint("It us %s that I killed" %killed)
+        return killed
+
+    def try_to_stop_division(self,cell):
+        Psd = 0.10 #TODO za sada je fiksirano
+        self.xprint("Trying to stop division with probability %s" % Psd)
+        stopped = self.random.choices(population=[True,False],weights=[Psd,1-Psd])[0]
+        cell.stop_division=stopped
+        self.points+=cell.points_if_eaten if stopped else 0 
+        self.xprint("It us %s that I stopped division" %stopped)
+        return stopped 
+        
+        
 
     def try_to_associate(self,cell):
         """Tries to associate and refreshes memory with cell"""
@@ -238,12 +392,12 @@ class CureAgent(Agent):
 #        assert(self.radoznalost<=1 and self.radoznalost>=0)
         mem = self.memorija.get(cell.color,False)
         self.memorize(cell)
+        modified_Pa = self.Pa*cell.modifiers["Pa"]
         if not mem:
-            #Pa = self.Pa 
-            Pa = self.radoznalost*self.Pa #TODO da li je OK ovako?
+            Pa = self.radoznalost*modified_Pa 
             self.xprint("Cell not recognized,probability Pa is %s"%Pa)
         elif mem>0:
-            Pa = self.Pa
+            Pa = modified_Pa
             self.xprint ("Found in memory")
         elif mem<0:
             self.xprint("Healthy cell recognized!")
@@ -266,14 +420,27 @@ class CureAgent(Agent):
         
     def try_to_internalize(self,cell):
         self.xprint("Trying to internalize with %s probability"%self.Pi)
-        internalized = self.random.choices(population = [True,False],weights = [self.Pi, 1- self.Pi])[0]
+        modified_Pi = self.Pi*cell.modifiers["Pi"]
+        self.xprint("The cell has Pi_modifier: %s " %(cell.modifiers["Pi"]))
+        self.xprint("Modified probability: %s" %(modified_Pi))
+        internalized = self.random.choices(population = [True,False],weights = [modified_Pi, 1- modified_Pi])[0]
         self.xprint("It is %s that i internalized" %internalized)
-        if internalized:
-            self.model.kill_cell(cell)
-            self.points+=cell.points_if_eaten
-        else:
-            cell.stress()
+
+        # else:
+        #     cell.stress()
         return internalized
+
+
+    ## Todo wrap some repetitive code 
+   #  def trace_in(func, *args, **kwargs):
+   # 2    print "Entering function",  func.__name__
+   # 3 
+   # 4 def trace_out(func, *args, **kwargs):
+   # 5    print "Leaving function", func.__name__
+   # 6 
+   # 7 @wrap(trace_in, trace_out)
+   # 8 def calc(x, y):
+   # 9    return x + y
 
     def mutate(self):
         self.xprint("I am mutating")
@@ -285,9 +452,6 @@ class CureAgent(Agent):
             self.memorija[key] = value
         self.xprint("New memory (size: %s) : " %self.memory_size)
         self.xprint(self.memorija)
-        #TODO copy memory
-        
-        
 
 
     def kill_self(self):
@@ -295,7 +459,7 @@ class CureAgent(Agent):
         self.model.grid.remove_agent(self)
 
     def copy(self):
-        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds)
+        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost)
         n.speed = self.speed
         n.Pa = self.Pa
         n.Pi = self.Pi
@@ -303,14 +467,29 @@ class CureAgent(Agent):
         n.memorija = self.memorija.copy()
         n.memory_size = self.memory_size
         n.color = self.color
+        n.type = self.type
         return n
-        
+
 
 class InfiniteFixedCureAgent(CureAgent):
     def __init__(self,unique_id,model,speeds):
         super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds)
-        self.probabilities_CC = [0.5,0.5,0.5]
+        
+        # self.probabilities_CC = [0.5,0.5,0.5]
+        # self.probabilities_HC = [0.5,0.5,0.5]
+
+        # self.probabilities_CC = [0.6,0.5,0.6]
+        # self.probabilities_HC = [0.5,0.5,0.5]
+
+        # self.probabilities_CC = [0.7,0.5,0.7]
+        # self.probabilities_HC = [0.5,0.5,0.5]
+
+        # self.probabilities_CC = [0.8,0.5,0.8]
+        # self.probabilities_HC = [0.5,0.5,0.5]
+
+        self.probabilities_CC = [0.9,0.5,0.9]
         self.probabilities_HC = [0.5,0.5,0.5]
+        
         self.memory_size = 0
         self.Pi,self.Pa,self.Pd = None,None,None
 
@@ -359,11 +538,11 @@ import uuid
 class CancerModel(Model):
 
     def xprint(self,*args):
-        return
         print( "CANCER MODEL:  " +" ".join(map(str,args)))
-    def __init__(self,cancer_cells_number,cure_number, verovatnoca_mutacije,radoznalost,cure_agent_type):
+    def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type):
         self.xprint("STARTING SIMULATION !!!")
         self.counter = 0
+        self.metastasis_score=0
         eat_values =  {CancerCell:1,HealthyCell:-1,CancerStemCell:5}
         assert(issubclass(cure_agent_type,CureAgent))
         self.cure_number = cure_number
@@ -374,8 +553,8 @@ class CancerModel(Model):
                            "MutationAmount":mutation_amount,
                            "CancerStemCell Number":CSC_number,
                            "CSC Specialized Agents":CSC_specialized_agents,
-                           "CancerHeterogenity": cancer_heterogenity
-
+                           "CancerHeterogenity": cancer_heterogenity,
+                           "CancerCellNumber": CC_number
                             },
             agent_reporters={"Pi":get_Pi,"Pa":get_Pa,"Pd":get_Pd,"speed":get_speed})
         grid_size = math.ceil(math.sqrt(cancer_cells_number*4))
@@ -388,12 +567,14 @@ class CancerModel(Model):
         self.running = True
         for i in range(cancer_cells_number):
             pos = poss[i]
-            c = CancerStemCell("CANCER_STEM_CELL-"+str(uuid.uuid4()),self,value = eat_values[CancerStemCell]) if pos in pos_CSC else CancerCell("CANCER_CELL-"+str(uuid.uuid4()),self,value=eat_values[CancerCell])
+            has_modifiers = False if i < (0.9*cancer_cells_number) else True #10 % will be with modifiers
+            c = CancerStemCell("CANCER_STEM_CELL-"+str(uuid.uuid4()),self,value = eat_values[CancerStemCell],has_modifiers=has_modifiers) \
+                if pos in pos_CSC else CancerCell("CANCER_CELL-"+str(uuid.uuid4()),self,value=eat_values[CancerCell],has_modifiers=has_modifiers)
             self.grid.place_agent(c,pos)
             self.schedule.add(c)
         for i in range(cure_number):
             pos = (0,0)
-            a = cure_agent_type("NANO_AGENT-"+str(uuid.uuid4()),self,speeds = self.speeds) 
+            a = cure_agent_type(uuid.uuid4(),self,speeds = self.speeds,radoznalost=radoznalost) 
             self.grid.place_agent(a,pos)
             self.schedule.add(a)
 
@@ -422,8 +603,8 @@ class CancerModel(Model):
         prvi = sortirani[:koliko]
         sredina = len(sortirani)//2
         pocetak_sredine = sredina-(koliko//2)
-        kraj_sredine = sredina+(koliko//2)
-        srednji = sortirani[sredina:(sredina+koliko)]
+        kraj_sredine = sredina+(koliko//2) 
+        srednji = sortirani[pocetak_sredine:kraj_sredine]
         self.mutate_agents(srednji)
         assert(len(prvi)==len(poslednji))
         self.remove_agents(poslednji)
@@ -435,38 +616,30 @@ class CancerModel(Model):
             a.mutate()
     def remove_agents(self,agents):
         for a in agents:
-            self.schedule.remove(a)
-            self.grid.remove_agent(a)
+            self.kill_cell(a)
     def duplicate_agents(self,agents):
         for a in agents:
             a_new = a.copy()
             self.grid.place_agent(a_new,(1,1))
             self.schedule.add(a_new)
-
-
-
-        
         
     def kill_cell(self,cell):
         self.grid.remove_agent(cell)
         self.schedule.remove(cell)
-        
+
+    def detach_stem_cell(self,cell):
+        self.metastasis_score +=1
+        self.kill_cell(cell)
 
     def step(self):
         self.datacollector.collect(self)
         self.counter+=1
         self.schedule.step()
         if self.counter%10 ==0: # TODO ovo menjamo, parameter TODO
-            #TODO sredi ovo pucanje zbog nule u latin hypercube
-            #TODO napravi da je R promenljivo
             self.duplicate_mutate_or_kill()
         if self.counter%30 ==0: #TODO ovo da se zadaje
             _ = [c.grow() for c in self.schedule.agents if isinstance(c,CancerCell)]
-        # if self.counter%150 ==0: #TODO ovo da se zadaje
-        #     _ = [c.grow() for c in self.schedule.agents if isinstance(c,HealthyCell)]
             
-            
-        
 
 def fitness_funkcija(model):
     r = 5
@@ -496,7 +669,7 @@ def cancer_heterogenity(model):
     print("Number of CCs,Number of mutated CCs")
     print(len(CCs),len(mc))
     try:
-        return len(CCs)/len(mc)
+        return len(mc)/len(CCs)
     except ZeroDivisionError:
         return 0 
 
@@ -567,6 +740,10 @@ def get_speed(agent):
         return agent.speed
     except AttributeError:
         return None
+
+def CC_number(model):
+    CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell)]
+    return len(CCs)
 
 
 

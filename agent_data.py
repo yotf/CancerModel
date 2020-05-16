@@ -1,6 +1,3 @@
-# super, divno. Koliko vidim rezultati se uklapaju u ocekivanja.  Prema
-# consistency analysis cini se da cemo morati da idemo na sample size 50.
-# Moracemo na slikama da doradimo legendu i ose, ali to je otprilike to.
 # Da li mozes da uradis sledece: tokom 0b evolucije da se u svakom
 # vremenskom koraku izvuku p_a, p_d, p_i, speed vrednosti za svakog
 # pojedinacno agenta.
@@ -25,23 +22,20 @@
 
 
 from model import *
-CC_NUM = 300
+import pandas as pd
+CC_NUM = 500
 NA_NUM = 500
-CANCER_MUTATION_PROBABILITY = 0.1
-NA_CURIOSITY = 1
+NA_CURIOSITY = 0.5
 def run_model_and_get_agent_data(nanoagent_type,steps):
     print(steps)
     model = CancerModel(cancer_cells_number=CC_NUM,cure_number = NA_NUM,
-                            verovatnoca_mutacije=CANCER_MUTATION_PROBABILITY,
                             radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type)
     for i in range(steps):
             model.step()
     rez = model.datacollector.get_agent_vars_dataframe()
-    print(rez)
-    assert(False)
-    results.append(rez)
-    return results
+    return rez
 
 
 if __name__ =="__main__":
-    run_model_and_get_agent_data(CureAgent,200)
+    rez = run_model_and_get_agent_data(CureAgent,2000)
+    rez.to_csv("CureAgent_agent_data_2000steps.csv")
