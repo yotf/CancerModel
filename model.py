@@ -111,6 +111,7 @@ class Cell(Agent):
         self.modifiers = dict.fromkeys(p_names,1)
 
     def xprint(self,*args):
+        return
         print( "%s:  " %self.unique_id+" ".join(map(str,args))+"XXX")
 
 
@@ -154,6 +155,7 @@ class CancerCell(Cell):
         self.stop_division =False
 
     def xprint(self,*args):
+        return
         print( "%s:  " %self.unique_id+" ".join(map(str,args)))
 
     def step(self):
@@ -200,8 +202,12 @@ class CancerCell(Cell):
 class CancerStemCell(CancerCell):
     def __init__(self,unique_id,model,value,has_modifiers):
         super().__init__(unique_id,model,value,has_modifiers)
+        
         self.color = CANCER_STEM_CELL_COLOR
         self.points_if_eaten = value
+        self.modifiers['Pi'] = self.random.uniform(0.5,0.8)
+        self.modifiers["Psd"] = self.random.uniform(0.5,0.8)
+        #TODO ako su izabrani i neki drugi, oni ostaju kao modifier-i 
         #samo obrnute verovatnoce TODO 
         #TODO, oni novi agenti, ne znam kako su oni sa ovime - treba ih premisliti !!
 
@@ -224,6 +230,7 @@ class CureAgent(Agent):
     KILLING_AGENT = "KILLING AGENT"
 
     def xprint(self,*args):
+        return
         print( "%s:  " %self.unique_id+" ".join(map(str,args)))
     
     def __init__(self,unique_id,model,speeds,radoznalost): 
@@ -251,6 +258,8 @@ class CureAgent(Agent):
     def initialize_variables(self):
         
         self.Pi,self.Pd,self.Pa  = [self.random.choice(self.probabilities_range) for i in range(3)]
+        self.Pk,self.Psd = 0.50,0.5 #TODO za sada je fiksirano
+
         self.speed = self.random.choice(self.speeds)
         self.memory_size = self.random.choice(self.memory_range)
         self.memorija = FixSizeOrderedDict(max=self.memory_size)
@@ -366,9 +375,8 @@ class CureAgent(Agent):
         
 
     def try_to_kill(self,cell):
-        Pk = 0.10 #TODO za sada je fiksirano
         self.xprint("Trying to kill")
-        killed = self.random.choices(population=[True,False],weights=[Pk,1-Pk])[0]
+        killed = self.random.choices(population=[True,False],weights=[self.Pk,1-self.Pk])[0]
         if killed:
             self.model.kill_cell(cell)
             self.points+=cell.points_if_eaten
@@ -376,9 +384,8 @@ class CureAgent(Agent):
         return killed
 
     def try_to_stop_division(self,cell):
-        Psd = 0.10 #TODO za sada je fiksirano
-        self.xprint("Trying to stop division with probability %s" % Psd)
-        stopped = self.random.choices(population=[True,False],weights=[Psd,1-Psd])[0]
+        self.xprint("Trying to stop division with probability %s" % self.Psd)
+        stopped = self.random.choices(population=[True,False],weights=[self.Psd,1-self.Psd])[0]
         cell.stop_division=stopped
         self.points+=cell.points_if_eaten if stopped else 0 
         self.xprint("It us %s that I stopped division" %stopped)
@@ -389,7 +396,6 @@ class CureAgent(Agent):
     def try_to_associate(self,cell):
         """Tries to associate and refreshes memory with cell"""
 
-#        assert(self.radoznalost<=1 and self.radoznalost>=0)
         mem = self.memorija.get(cell.color,False)
         self.memorize(cell)
         modified_Pa = self.Pa*cell.modifiers["Pa"]
@@ -464,6 +470,8 @@ class CureAgent(Agent):
         n.Pa = self.Pa
         n.Pi = self.Pi
         n.Pd = self.Pd
+        n.Pk = self.Pk
+        n.Psd = self.Psd
         n.memorija = self.memorija.copy()
         n.memory_size = self.memory_size
         n.color = self.color
@@ -472,8 +480,8 @@ class CureAgent(Agent):
 
 
 class InfiniteFixedCureAgent(CureAgent):
-    def __init__(self,unique_id,model,speeds):
-        super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds)
+    def __init__(self,unique_id,model,speeds,radoznalost):
+        super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds,radoznalost)
         
         # self.probabilities_CC = [0.5,0.5,0.5]
         # self.probabilities_HC = [0.5,0.5,0.5]
@@ -481,24 +489,24 @@ class InfiniteFixedCureAgent(CureAgent):
         # self.probabilities_CC = [0.6,0.5,0.6]
         # self.probabilities_HC = [0.5,0.5,0.5]
 
-        # self.probabilities_CC = [0.7,0.5,0.7]
-        # self.probabilities_HC = [0.5,0.5,0.5]
+        self.probabilities_CC = [0.7,0.5,0.7,0.7,0.7]
+        self.probabilities_HC = [0.5,0.5,0.5,0.5,0.5]
 
         # self.probabilities_CC = [0.8,0.5,0.8]
         # self.probabilities_HC = [0.5,0.5,0.5]
 
-        self.probabilities_CC = [0.9,0.5,0.9]
-        self.probabilities_HC = [0.5,0.5,0.5]
+#        self.probabilities_CC = [0.9,0.5,0.9,0.9,0.9]
         
         self.memory_size = 0
-        self.Pi,self.Pa,self.Pd = None,None,None
+        self.Pi,self.Pa,self.Pd,self.Pk,self.Psd = None,None,None,None,None
 
     def try_to_associate(self,cell):
         points = cell.points_if_eaten
         self.xprint(" This cell is a %s " %("Cancer Cell" if points>0 else "Healthy Cell"))
-        self.Pa,self.Pd,self.Pi = self.probabilities_CC if points>0 else self.probabilities_HC
+        self.Pa,self.Pd,self.Pi,self.Pk,self.Psd = self.probabilities_CC if points>0 else self.probabilities_HC
         self.xprint("Trying to associate with probability %s from %s state" %(self.Pa,self.state))
-        associated = self.random.choices(population = [True,False],weights=[self.Pa,1-self.Pa])[0]
+        modified_Pa = self.Pa*cell.modifiers["Pa"]
+        associated = self.random.choices(population = [True,False],weights=[modified_Pa,1-modified_Pa])[0]
         self.xprint("It is %s that I will associate" %associated)
         return associated
 
@@ -509,14 +517,16 @@ class InfiniteFixedCureAgent(CureAgent):
 
     def copy(self):
         self.xprint("COPYING MYSELF")
-        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds)
+        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost)
         n.speed = self.speed
         n.color = self.color
+        n.type = self.type
         return n
 
 class MutationBlindNanoAgent(CureAgent):
-    def __init__(self,unique_id,model,speeds):
-        super(MutationBlindNanoAgent,self).__init__(unique_id,model,speeds)
+    def __init__(self,unique_id,model,speeds,radoznalost):
+        super(MutationBlindNanoAgent,self).__init__(unique_id,model,speeds,radoznalost)
+        self.ORIGINAL_RADOZNALOST = radoznalost
         self.radoznalost = 0 
 
     def memorize(self,cell):
@@ -527,9 +537,9 @@ class MutationBlindNanoAgent(CureAgent):
         if cell.color in known_colors:
             self.xprint("Can memorize cell")
             super().memorize(cell)
-            self.radoznalost = 1
+            self.radoznalost = self.ORIGINAL_RADOZNALOST 
         else:
-            self.radoznalost = 0 # ne svidja mi se logika ovoga, al ajde
+            self.radoznalost = 0 # ne svidja mi se logika ovoga, al ajde TODO 
             self.xprint("Cant memorize cell")
 
 
@@ -538,6 +548,7 @@ import uuid
 class CancerModel(Model):
 
     def xprint(self,*args):
+        return
         print( "CANCER MODEL:  " +" ".join(map(str,args)))
     def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type):
         self.xprint("STARTING SIMULATION !!!")
@@ -554,7 +565,8 @@ class CancerModel(Model):
                            "CancerStemCell Number":CSC_number,
                            "CSC Specialized Agents":CSC_specialized_agents,
                            "CancerHeterogenity": cancer_heterogenity,
-                           "CancerCellNumber": CC_number
+                           "CancerCellNumber": CC_number,
+                           "MetastasisScore" : "metastasis_score"
                             },
             agent_reporters={"Pi":get_Pi,"Pa":get_Pa,"Pd":get_Pd,"speed":get_speed})
         grid_size = math.ceil(math.sqrt(cancer_cells_number*4))
@@ -572,8 +584,12 @@ class CancerModel(Model):
                 if pos in pos_CSC else CancerCell("CANCER_CELL-"+str(uuid.uuid4()),self,value=eat_values[CancerCell],has_modifiers=has_modifiers)
             self.grid.place_agent(c,pos)
             self.schedule.add(c)
+
+        from itertools import cycle
+        positions = cycle([(self.random.choice(range(grid_size)),self.random.choice(range(grid_size))) for i in range(5)])
         for i in range(cure_number):
-            pos = (0,0)
+            pos = next(positions)
+            self.xprint(pos)
             a = cure_agent_type(uuid.uuid4(),self,speeds = self.speeds,radoznalost=radoznalost) 
             self.grid.place_agent(a,pos)
             self.schedule.add(a)
@@ -637,7 +653,7 @@ class CancerModel(Model):
         self.schedule.step()
         if self.counter%10 ==0: # TODO ovo menjamo, parameter TODO
             self.duplicate_mutate_or_kill()
-        if self.counter%30 ==0: #TODO ovo da se zadaje
+        if self.counter%100 ==0: #TODO ovo da se zadaje
             _ = [c.grow() for c in self.schedule.agents if isinstance(c,CancerCell)]
             
 
@@ -666,8 +682,8 @@ def memory_size_all(model):
 def cancer_heterogenity(model):
     CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell) ]
     mc = [c for c in CCs if c.mutation_count>0]
-    print("Number of CCs,Number of mutated CCs")
-    print(len(CCs),len(mc))
+    # print("Number of CCs,Number of mutated CCs")
+    # print(len(CCs),len(mc))
     try:
         return len(mc)/len(CCs)
     except ZeroDivisionError:
@@ -680,9 +696,9 @@ def population_heterogenity(model):
     sve_memorije = [list(a.memorija.keys()) for a in model.schedule.agents if isinstance(a,CureAgent)]
     all_colors_in_memories = sum(sve_memorije,[])
     unique_colors = set(all_colors_in_memories)
-    print("memorije,unique")
-    print(unique_colors)
-    print(len(sve_memorije),len(unique_colors))
+    # print("memorije,unique")
+    # print(unique_colors)
+    # print(len(sve_memorije),len(unique_colors))
     return len(unique_colors)/len(sve_memorije)
 
     # het = 0
@@ -697,15 +713,15 @@ def population_heterogenity(model):
 def CSC_specialized_agents(model):
     NAs = [a for a in model.schedule.agents if isinstance(a,CureAgent)]
     num_of_CSC_in_memory = [True for a in NAs if CANCER_STEM_CELL_COLOR in a.memorija.keys()]
-    print("num of csc in memories")
-    print(num_of_CSC_in_memory)
-    print(len(num_of_CSC_in_memory))
+    # print("num of csc in memories")
+    # print(num_of_CSC_in_memory)
+    # print(len(num_of_CSC_in_memory))
     return len(num_of_CSC_in_memory)
     
 def CSC_number(model):
     n = len([True for c in model.schedule.agents if isinstance(c,CancerStemCell)])
-    print("CSC number")
-    print(n)
+    # print("CSC number")
+    # print(n)
     return n
     
                 
@@ -713,9 +729,12 @@ def CSC_number(model):
 def mutation_amount(model):
     """Returns the total of mutations of CCs"""
     mutation_counts = [c.mutation_count for c in model.schedule.agents if isinstance(c,CancerCell)]
-    print("mutation counts")
-    print(mutation_counts)
+#    print("mutation counts")
+#    print(mutation_counts)
     return sum(mutation_counts)
+
+
+
 
 def get_Pi(agent):
     try:

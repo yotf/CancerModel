@@ -2,15 +2,12 @@ import pandas as pd
 from model import *
 from collections import namedtuple
 import pickle
-brojevi_koraka = [50,100,250,500]
-
-
+brojevi_koraka = [50,100,250,500,1000]
 sample_sizes = [1,5,50,100]
 
 CC_NUM = 300
 NA_NUM = 500
-CANCER_MUTATION_PROBABILITY = 0.1
-NA_CURIOSITY = 1
+NA_CURIOSITY = 0.5
 MAX_STEPS = 1000
 
 ConsistencyTuple = namedtuple("ConsistencyResult","br_koraka sample_size maxA")
@@ -55,7 +52,6 @@ def run_model_and_get_results(sample_size,nanoagent_type,steps):
     for i in range(sample_size):
         print("Running model : %s" %i)
         model = CancerModel(cancer_cells_number=CC_NUM,cure_number = NA_NUM,
-                            verovatnoca_mutacije=CANCER_MUTATION_PROBABILITY,
                             radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type)
         for i in range(steps):
             model.step()

@@ -38,7 +38,7 @@ for agent_type in agent_types:
         dfs.append(pd.read_csv(os.path.join(results_folder,"rez_%s-%sSTEPS-%s.csv"%(agent_type.__name__,STEPS,i))))
     rezs[agent_type] = pd.concat(dfs).groupby(level=0).mean()
 
-plot_inf("CancerCellNumber")
+#plot_inf("CancerCellNumber")
 
 plot_all_agent_types("CancerCellNumber")
 plt.title("CC number for all agent types and InfiniteFixedCureAgent settings")
