@@ -8,7 +8,7 @@ sample_sizes = [1,5,50,100]
 CC_NUM = 300
 NA_NUM = 500
 NA_CURIOSITY = 0.5
-MAX_STEPS = 1000
+MAX_STEPS = brojevi_koraka[-1]
 
 ConsistencyTuple = namedtuple("ConsistencyResult","br_koraka sample_size maxA")
 

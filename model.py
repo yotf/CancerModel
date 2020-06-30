@@ -164,6 +164,9 @@ class CancerCell(Cell):
         self.mutation_count +=0 if not mutate else 1
         self.xprint("I have mutated %s times" %self.mutation_count)
         self.color = CANCER_MUTATION_COLORS[self.mutation_count]
+        # will_grow = self.random.choices([True,False],[0.01,1-0.01])[0]
+        # if will_grow: 
+        #     self.grow()
         
 
     def grow(self):
@@ -213,7 +216,7 @@ class CancerStemCell(CancerCell):
 
     def step(self):
         super().step()
-        detach = self.random.choices(population=[True,False],weights=[0.20,0.80])[0]
+        detach = self.random.choices(population=[True,False],weights=[0.10,0.90])[0]
         if detach:
             self.model.detach_stem_cell(self)
 
@@ -653,8 +656,8 @@ class CancerModel(Model):
         self.schedule.step()
         if self.counter%10 ==0: # TODO ovo menjamo, parameter TODO
             self.duplicate_mutate_or_kill()
-        if self.counter%100 ==0: #TODO ovo da se zadaje
-            _ = [c.grow() for c in self.schedule.agents if isinstance(c,CancerCell)]
+        # if self.counter%100 ==0: #TODO ovo da se zadaje
+        #     _ = [c.grow() for c in self.schedule.agents if isinstance(c,CancerCell)]
             
 
 def fitness_funkcija(model):
