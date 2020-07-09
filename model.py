@@ -147,6 +147,7 @@ class CancerCell(Cell):
         self.points_if_eaten = value
         p_names = ["Pi","Pd","Pa","Pk","Psd"]
         self.modifiers = dict.fromkeys(p_names,1)
+        self.has_modifiers=has_modifiers
 
         if has_modifiers:
             pn = self.random.choice(p_names)
@@ -560,19 +561,33 @@ class CancerModel(Model):
         eat_values =  {CancerCell:1,HealthyCell:-1,CancerStemCell:5}
         assert(issubclass(cure_agent_type,CureAgent))
         self.cure_number = cure_number
+
+
         self.datacollector = DataCollector(
         model_reporters = {"FitnessFunction":fitness_funkcija,
-                           "SpeedSum":overall_speed,"OverallMemoryCapacity":memory_size_all,
+                           "AverageSpeed":speed_avg,"AverageMemoryCapacity":memory_size_all_avg,
                            "PopulationHeterogenity":population_heterogenity,
                            "MutationAmount":mutation_amount,
                            "CancerStemCell Number":CSC_number,
                            "CSC Specialized Agents":CSC_specialized_agents,
-                           "CancerHeterogenity": cancer_heterogenity,
-                           "CancerCellNumber": CC_number,
-                           "MetastasisScore" : "metastasis_score"
+                           "CancerHeterogenity1": cancer_heterogenity_1,
+                           "CancerHeterogenity2":cancer_heterogenity_2,
+                           "CC_Number": CC_number,
+                           "MetastasisScore" : "metastasis_score",
+                           "CancerSize": cancer_size,
+                           "TotalTumorResiliance":overall_cancer_resiliance,
+                           "TumorResiliance_Pi":cancer_resiliance_Pi,
+                           "TumorResiliance_Pd":cancer_resiliance_Pd,
+                           "TumorResiliance_Pa":cancer_resiliance_Pa,
+                           "TumorResiliance_Pk":cancer_resiliance_Pk,
+                           "TumorResiliance_Psd":cancer_resiliance_Psd,
+                           "NumberOfMutatedCells":mutated_CCs_num,
+                           "TumorCoverage":tumor_coverage
+
                             },
             agent_reporters={"Pi":get_Pi,"Pa":get_Pa,"Pd":get_Pd,"speed":get_speed})
         grid_size = math.ceil(math.sqrt(cancer_cells_number*4))
+        self.cancer_cells_number=cancer_cells_number
         self.grid = MultiGrid(grid_size,grid_size,False)
         self.speeds = list(range(1,grid_size//2))
         poss = self.generate_cancer_cell_positions(grid_size,cancer_cells_number)
@@ -658,7 +673,42 @@ class CancerModel(Model):
             self.duplicate_mutate_or_kill()
         # if self.counter%100 ==0: #TODO ovo da se zadaje
         #     _ = [c.grow() for c in self.schedule.agents if isinstance(c,CancerCell)]
-            
+
+
+# Za svaku NA konfiguraciju (6 komada) treba tokom simulacije ispratiti:
+
+def get_CCs(model):
+    CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell)]
+    return CCs
+
+def get_modifier_sum(model,modifier_name):
+    CCs = get_CCs(model)
+    modifiers = [(1-c.modifiers[modifier_name]) for c in CCs]
+    modifier_sum =sum(modifiers)
+    return modifier_sum
+
+def overall_cancer_resiliance(model):
+    s = 0
+    for p in ["Pi","Pd","Pa","Pk","Psd"]:
+        s+=get_modifier_sum(model,p)
+    return s 
+    
+    
+    
+def cancer_resiliance_Pi(model):
+    return get_modifier_sum(model,"Pi")
+
+def cancer_resiliance_Pd(model):
+    return get_modifier_sum(model,"Pd")
+
+def cancer_resiliance_Pa(model):
+    return get_modifier_sum(model,"Pa")
+
+def cancer_resiliance_Pk(model):
+    return get_modifier_sum(model,"Pk")
+
+def cancer_resiliance_Psd(model):
+    return get_modifier_sum(model,"Psd")
 
 def fitness_funkcija(model):
     r = 5
@@ -671,39 +721,74 @@ def fitness_funkcija(model):
         FF = len(HCs)
     return FF
 
-def overall_speed(model):
+def tumor_diversity_num(model):
+    tumor_colors = [c.color for c in model.schedule.agents if isinstance(c,CancerCell) ]
+    different_tumors = set(tumor_colors)
+    return len(different_tumors)
+    
+    
+
+
+def tumor_coverage(model):
+    # nek bude onih koji postoje
+    tumor_colors = [c.color for c in model.schedule.agents if isinstance(c,CancerCell)]
+    rc = [c for c in all_recognized_colors(model) if c in tumor_colors]
+    try:
+        return len(rc)/tumor_diversity_num(model)
+    except ZeroDivisionError:
+        return 1 
+
+def speed_avg(model):
     cures = [c for c in model.schedule.agents if isinstance(c,CureAgent)]
     speeds = 0
     for c in cures:
         speeds+= c.speed
-    return speeds
+    return speeds/len(cures)
 
-def memory_size_all(model):
-    return sum([m.memory_size for m in model.schedule.agents if isinstance(m,CureAgent)])
+def memory_size_all_avg(model):
+    cures = [c for c in model.schedule.agents if isinstance(c,CureAgent)]
+    memory_sizes = [m.memory_size for m in model.schedule.agents if isinstance(m,CureAgent)]
+    return sum(memory_sizes)/len(cures)
 
 
-def cancer_heterogenity(model):
+def cancer_heterogenity_1(model):
+    """Ratio between CC with modifiers and all CCs"""
+    CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell)]
+    num_of_modifier_CCs = len([c for c in CCs if c.has_modifiers])
+    try:
+        return num_of_modifier_CCs/len(CCs)
+    except ZeroDivisionError:
+        return 0
+
+
+def mutated_CCs_num(model):
+    mutated_CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell) and c.mutation_count>0 ]
+    return len (mutated_CCs)
+
+
+def cancer_heterogenity_2(model):
     CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell) ]
-    mc = [c for c in CCs if c.mutation_count>0]
     # print("Number of CCs,Number of mutated CCs")
     # print(len(CCs),len(mc))
     try:
-        return len(mc)/len(CCs)
+        return mutated_CCs_num(model)/len(CCs)
     except ZeroDivisionError:
         return 0 
 
+def all_recognized_colors(model):
+    sve_memorije = [list(a.memorija.keys()) for a in model.schedule.agents if isinstance(a,CureAgent)]
+    all_colors_in_memories = sum(sve_memorije,[])
+    unique_colors = set(all_colors_in_memories)
+    return unique_colors
     
 
 def population_heterogenity(model):
     """ Returns the overall number of new colors in memory """
+    cureagents = [a for a in model.schedule.agents if isinstance(a,CureAgent)]
     sve_memorije = [list(a.memorija.keys()) for a in model.schedule.agents if isinstance(a,CureAgent)]
     all_colors_in_memories = sum(sve_memorije,[])
     unique_colors = set(all_colors_in_memories)
-    # print("memorije,unique")
-    # print(unique_colors)
-    # print(len(sve_memorije),len(unique_colors))
-    return len(unique_colors)/len(sve_memorije)
-
+    return len(unique_colors)/len(cureagents)
     # het = 0
     # NAs = [a for a in model.schedule.agents if isinstance(a,CureAgent)]
     # for a in NAs:
@@ -726,8 +811,6 @@ def CSC_number(model):
     # print("CSC number")
     # print(n)
     return n
-    
-                
             
 def mutation_amount(model):
     """Returns the total of mutations of CCs"""
@@ -735,8 +818,6 @@ def mutation_amount(model):
 #    print("mutation counts")
 #    print(mutation_counts)
     return sum(mutation_counts)
-
-
 
 
 def get_Pi(agent):
@@ -763,9 +844,16 @@ def get_speed(agent):
     except AttributeError:
         return None
 
+
 def CC_number(model):
+    CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell) if not isinstance(c,CancerStemCell)]
+    return len(CCs)
+
+def cancer_size(model):
     CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell)]
     return len(CCs)
+
+
 
 
 
