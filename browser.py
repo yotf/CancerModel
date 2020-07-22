@@ -26,7 +26,7 @@ chart = ChartModule([{"Label": "FitnessFunction",
 
 
 server = ModularServer(CancerModel,[grid,chart],"Cancer Model",
-                    {"cancer_cells_number":KOLICINA_CELIJA,"cure_number":BROJ_LEKOVA,"radoznalost":RADOZNALOST_LEKOVA,"cure_agent_type":InfiniteFixedCureAgent})
+                       {"cancer_cells_number":KOLICINA_CELIJA,"cure_number":BROJ_LEKOVA,"radoznalost":RADOZNALOST_LEKOVA,"cure_agent_type":CureAgent})
 server.port = 8523
 server.launch()
 

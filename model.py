@@ -237,9 +237,10 @@ class CureAgent(Agent):
         return
         print( "%s:  " %self.unique_id+" ".join(map(str,args)))
     
-    def __init__(self,unique_id,model,speeds,radoznalost): 
+    def __init__(self,unique_id,model,speeds,radoznalost,memory_type): 
         super(CureAgent,self).__init__(unique_id,model)
         self.speeds = speeds
+        self.MEMORY_TYPE = memory_type
         #on bira ovde koji je tip, i onda ce se to posle gledati
         # if type=STOP_DIVISION: self.in
         self.step_functions = {self.MOVING_STATE:self.step_move,
@@ -260,12 +261,12 @@ class CureAgent(Agent):
 
 
     def initialize_variables(self):
+        #Kod mutacije ce ovo pokrenuti, tako da bi trebalo sve da bude u okviru onog sto mogu da urade 
         
         self.Pi,self.Pd,self.Pa  = [self.random.choice(self.probabilities_range) for i in range(3)]
         self.Pk,self.Psd = 0.50,0.5 #TODO za sada je fiksirano
-
         self.speed = self.random.choice(self.speeds)
-        self.memory_size = self.random.choice(self.memory_range)
+        self.memory_size = self.random.choice(self.memory_range) if self.MEMORY_TYPE is None else self.MEMORY_TYPE
         self.memorija = FixSizeOrderedDict(max=self.memory_size)
         self.type = self.random.choice([self.STOP_DIVISION_AGENT,self.KILLING_AGENT])
      #   self.set_final_function_for_type()
@@ -469,7 +470,7 @@ class CureAgent(Agent):
         self.model.grid.remove_agent(self)
 
     def copy(self):
-        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost)
+        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost,memory_type=self.MEMORY_TYPE)
         n.speed = self.speed
         n.Pa = self.Pa
         n.Pi = self.Pi
@@ -484,8 +485,8 @@ class CureAgent(Agent):
 
 
 class InfiniteFixedCureAgent(CureAgent):
-    def __init__(self,unique_id,model,speeds,radoznalost):
-        super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds,radoznalost)
+    def __init__(self,unique_id,model,speeds,radoznalost,memory_type):
+        super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds,radoznalost,memory_type)
         
         # self.probabilities_CC = [0.5,0.5,0.5]
         # self.probabilities_HC = [0.5,0.5,0.5]
@@ -516,20 +517,22 @@ class InfiniteFixedCureAgent(CureAgent):
 
     def mutate(self):
         self.speed = self.random.choice(self.speeds)
+        self.type = self.random.choice([self.STOP_DIVISION_AGENT,self.KILLING_AGENT])
         self.represent_self()
+        
         
 
     def copy(self):
         self.xprint("COPYING MYSELF")
-        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost)
+        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost,memory_type=self.MEMORY_TYPE)
         n.speed = self.speed
         n.color = self.color
         n.type = self.type
         return n
 
 class MutationBlindNanoAgent(CureAgent):
-    def __init__(self,unique_id,model,speeds,radoznalost):
-        super(MutationBlindNanoAgent,self).__init__(unique_id,model,speeds,radoznalost)
+    def __init__(self,unique_id,model,speeds,radoznalost,memory_type):
+        super(MutationBlindNanoAgent,self).__init__(unique_id,model,speeds,radoznalost,memory_type)
         self.ORIGINAL_RADOZNALOST = radoznalost
         self.radoznalost = 0 
 
@@ -554,7 +557,7 @@ class CancerModel(Model):
     def xprint(self,*args):
         return
         print( "CANCER MODEL:  " +" ".join(map(str,args)))
-    def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type):
+    def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type,agent_memory_type=None):
         self.xprint("STARTING SIMULATION !!!")
         self.counter = 0
         self.metastasis_score=0
@@ -573,6 +576,7 @@ class CancerModel(Model):
                            "CancerHeterogenity1": cancer_heterogenity_1,
                            "CancerHeterogenity2":cancer_heterogenity_2,
                            "CC_Number": CC_number,
+                           "HealthyCell_Number":HC_number,
                            "MetastasisScore" : "metastasis_score",
                            "CancerSize": cancer_size,
                            "TotalTumorResiliance":overall_cancer_resiliance,
@@ -585,7 +589,7 @@ class CancerModel(Model):
                            "TumorCoverage":tumor_coverage
 
                             },
-            agent_reporters={"Pi":get_Pi,"Pa":get_Pa,"Pd":get_Pd,"speed":get_speed})
+        agent_reporters={"Pi":get_Pi,"Pa":get_Pa,"Pd":get_Pd,"speed":get_speed,"Psd":get_Psd,"Pk":get_Pk,"memory_size":get_memory_size,"type":get_agent_type})
         grid_size = math.ceil(math.sqrt(cancer_cells_number*4))
         self.cancer_cells_number=cancer_cells_number
         self.grid = MultiGrid(grid_size,grid_size,False)
@@ -608,7 +612,7 @@ class CancerModel(Model):
         for i in range(cure_number):
             pos = next(positions)
             self.xprint(pos)
-            a = cure_agent_type(uuid.uuid4(),self,speeds = self.speeds,radoznalost=radoznalost) 
+            a = cure_agent_type(uuid.uuid4(),self,speeds = self.speeds,radoznalost=radoznalost,memory_type=agent_memory_type) 
             self.grid.place_agent(a,pos)
             self.schedule.add(a)
 
@@ -805,6 +809,10 @@ def CSC_specialized_agents(model):
     # print(num_of_CSC_in_memory)
     # print(len(num_of_CSC_in_memory))
     return len(num_of_CSC_in_memory)
+
+def HC_number(model):
+    hcs = [h for h in model.schedule.agents if isinstance(h,HealthyCell)]
+    return len(hcs)
     
 def CSC_number(model):
     n = len([True for c in model.schedule.agents if isinstance(c,CancerStemCell)])
@@ -844,6 +852,31 @@ def get_speed(agent):
     except AttributeError:
         return None
 
+
+def get_Psd(agent):
+    try:
+        return agent.Psd
+    except AttributeError:
+        return None
+
+def get_Pk(agent):
+    try:
+        return agent.Pk
+    except AttributeError:
+        return None
+
+def get_memory_size(agent):
+    try:
+        return agent.memory_size
+    except AttributeError:
+        return None
+
+def get_agent_type(agent):
+    try:
+        
+        return 1 if agent.type==agent.STOP_DIVISION_AGENT else 0
+    except AttributeError:
+        return None
 
 def CC_number(model):
     CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell) if not isinstance(c,CancerStemCell)]

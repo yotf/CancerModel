@@ -45,7 +45,7 @@ def get_maxA_for_steps_and_parameter(all_results_for_samplesize,steps,parameter)
 
 
 
-def run_model_and_get_results(sample_size,nanoagent_type,steps):
+def run_model_and_get_results(sample_size,nanoagent_type,steps,agent_memory_type):
     results = []
     print(steps)
     print("STATEMACHINE BRANCH")
@@ -53,7 +53,7 @@ def run_model_and_get_results(sample_size,nanoagent_type,steps):
     for i in range(sample_size):
         print("Running model : %s" %i)
         model = CancerModel(cancer_cells_number=CC_NUM,cure_number = NA_NUM,
-                            radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type)
+                            radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type,agent_memory_type=agent_memory_type)
         for i in range(steps):
             model.step()
         rez = model.datacollector.get_model_vars_dataframe()
