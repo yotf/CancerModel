@@ -45,20 +45,35 @@ def get_maxA_for_steps_and_parameter(all_results_for_samplesize,steps,parameter)
 
 
 
-def run_model_and_get_results(sample_size,nanoagent_type,steps,agent_memory_type):
+def run_model_and_get_results(sample_size,nanoagent_type,steps,agent_memory_type,turn_off_modifiers=False,CC_mutation_probability=0.001,modifier_fraction=0.1,is_tumor_growing=False):
     results = []
     print(steps)
+    print(locals())
     print("STATEMACHINE BRANCH")
     print("Sample size is:   %s" %sample_size)
+
+    def make_string(i):
+        string_base = "rez_%s-%sSTEPS" %(nanoagent_type.__name__,steps)
+        string_base+="_RANDOM_MEMORY" if agent_memory_type==None else "_MEMORY%s" %agent_memory_type
+        string_base+="_NO_MOD" if turn_off_modifiers else ""
+        string_base+="_NO_CC_MUTATION" if CC_mutation_probability==0 else ""
+        string_base+="__MOD-%s" %modifier_fraction
+        string_base+="-%s.csv" %i
+        return string_base
+        
     for i in range(sample_size):
         print("Running model : %s" %i)
         model = CancerModel(cancer_cells_number=CC_NUM,cure_number = NA_NUM,
-                            radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type,agent_memory_type=agent_memory_type)
-        for i in range(steps):
+                            radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type,agent_memory_type=agent_memory_type,turn_off_modifiers=turn_off_modifiers,CC_mutation_probability=CC_mutation_probability,modifier_fraction=modifier_fraction,is_tumor_growing=is_tumor_growing)
+        for j in range(steps):
             model.step()
         rez = model.datacollector.get_model_vars_dataframe()
+        fname = make_string(i)
+        rez.to_csv(fname)
         results.append(rez)
+
     return results
+
 
 def check_conistency(nanoagent_type,PARAMETER = "FitnessFunction"):
     results_list = []

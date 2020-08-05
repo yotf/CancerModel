@@ -54,7 +54,6 @@
 # stress-induced mutation (experimental data on that are controversial, so
 # for now we should leave it out).
 
-# da li je mutaciju ostavljamo kad je stress, ili samo svaki put? TODO
 
 #Ok, ovo sve moze sutra, bez problema. samo ga pusti i gledaj logove
 
@@ -140,18 +139,20 @@ def add_to_color(hex_color,amount):
 
         
 class CancerCell(Cell):
-    def __init__(self,unique_id,model,value,has_modifiers):
+    def __init__(self,unique_id,model,value,has_modifiers,mutation_probability,grows):
         super().__init__(unique_id,model)
-        self.mutation_count = 0 
+        self.mutation_count = 0
+        self.mutation_probability=mutation_probability
         self.color = CANCER_CELL_COLOR
         self.points_if_eaten = value
         p_names = ["Pi","Pd","Pa","Pk","Psd"]
         self.modifiers = dict.fromkeys(p_names,1)
         self.has_modifiers=has_modifiers
+        self.grows=grows
 
         if has_modifiers:
             pn = self.random.choice(p_names)
-            self.modifiers[pn]=self.random.uniform(0.3,0.8) #TODO reci igoru
+            self.modifiers[pn]=self.random.uniform(0.3,0.8) 
         self.xprint("Initialized modifiers : %s" %self.modifiers)
         self.stop_division =False
 
@@ -160,14 +161,15 @@ class CancerCell(Cell):
         print( "%s:  " %self.unique_id+" ".join(map(str,args)))
 
     def step(self):
-        mutate = self.random.choices([True,False],[0.001,1-0.001])[0]
+        mutate = self.random.choices([True,False],[self.mutation_probability,1-self.mutation_probability])[0]
         self.xprint("It is %s that I mutated" %(mutate))
         self.mutation_count +=0 if not mutate else 1
         self.xprint("I have mutated %s times" %self.mutation_count)
         self.color = CANCER_MUTATION_COLORS[self.mutation_count]
-        # will_grow = self.random.choices([True,False],[0.01,1-0.01])[0]
-        # if will_grow: 
-        #     self.grow()
+        if self.grows:
+            will_grow = self.random.choices([True,False],[0.01,1-0.01])[0]
+            if will_grow: 
+                self.grow()
         
 
     def grow(self):
@@ -176,15 +178,13 @@ class CancerCell(Cell):
         n = self.model.grid.get_neighborhood(self.pos,moore=True,include_center = False)
         for pos in n:
             if self.model.grid.is_cell_empty(pos):
-                c = self.__class__("CANCER_CELL-"+str(uuid.uuid4()),value=self.points_if_eaten,model=self.model,has_modifiers=False)
+                c = self.__class__("CANCER_CELL-"+str(uuid.uuid4()),value=self.points_if_eaten,model=self.model,has_modifiers=False,mutation_probability=self.mutation_probability,grows=self.grows)
                 c.modifiers =self.modifiers
                 self.xprint("Duplicated myself, new cell has modifiers: %s" %c.modifiers)
                 self.xprint("I have modifiers: %s" %c.modifiers)
                 assert(c.modifiers==self.modifiers)
                 self.model.grid.place_agent(c,pos)
                 self.model.schedule.add(c)
-        
-    
 
     # def mutate_color(self,color_hex,by=5):
     #     r,g,b = get_rgb_from_hex(color_hex)
@@ -192,28 +192,15 @@ class CancerCell(Cell):
     #     return "#{}{}{}".format(r,g,b)
 
 
-       # TODO mutiramo 5% srednjih, ili speed ili radoznalost za jedan stepen mislim da sve ide u random
-       # TODO budu veci ovi sto znaju vise
-       # TODO napraviti fajl koji pusta simulacije, da bude onako kao robustness latin hyperc....
-       # Na osnovu tumora i postavke da nam kaze najbolju populaciju, i pusta simulacije TODO ali kasnije
-       # TODO smisslja igor kako velicina populacije da se odredi
-       # TODO mutacije, nov random broj u tim okvirima 5%
-       # TODO pogledati sve varijante evolutivnog algoritma, kako se razvijaju
-       # TODO pogledati kako radi onaj jutjub kanal sto se tice umiranja
-
-
 
 class CancerStemCell(CancerCell):
-    def __init__(self,unique_id,model,value,has_modifiers):
-        super().__init__(unique_id,model,value,has_modifiers)
-        
+    def __init__(self,unique_id,model,value,has_modifiers,mutation_probability,grows):
+        super().__init__(unique_id,model,value,has_modifiers,mutation_probability,grows)
         self.color = CANCER_STEM_CELL_COLOR
         self.points_if_eaten = value
         self.modifiers['Pi'] = self.random.uniform(0.5,0.8)
         self.modifiers["Psd"] = self.random.uniform(0.5,0.8)
-        #TODO ako su izabrani i neki drugi, oni ostaju kao modifier-i 
-        #samo obrnute verovatnoce TODO 
-        #TODO, oni novi agenti, ne znam kako su oni sa ovime - treba ih premisliti !!
+
 
     def step(self):
         super().step()
@@ -229,7 +216,7 @@ class CureAgent(Agent):
     ASSOCIATED_1 = "associated1"
     INTERNALIZED_STATE = "internalized"
     probabilities_range = np.arange(0,1,0.1)
-    memory_range = [0,1,2,3] #TODO da li je max 3 ?
+    memory_range = [0,1,2,3] #TODO proveriti uvek da li je dobar range !!! 
     STOP_DIVISION_AGENT = "STOP_DIVISION_AGENT"
     KILLING_AGENT = "KILLING AGENT"
 
@@ -487,8 +474,8 @@ class CureAgent(Agent):
 class InfiniteFixedCureAgent(CureAgent):
     def __init__(self,unique_id,model,speeds,radoznalost,memory_type):
         super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds,radoznalost,memory_type)
-        
-        # self.probabilities_CC = [0.5,0.5,0.5]
+        #TODO (0.8,0.4) (0.9,0.3) 0.5 (za Pd ostaje) (ovo je sve za tumor koji ne raste ) 
+        # self.probabilities_CC = [0.8,0.5,0.5]
         # self.probabilities_HC = [0.5,0.5,0.5]
 
         # self.probabilities_CC = [0.6,0.5,0.6]
@@ -503,7 +490,7 @@ class InfiniteFixedCureAgent(CureAgent):
 #        self.probabilities_CC = [0.9,0.5,0.9,0.9,0.9]
         
         self.memory_size = 0
-        self.Pi,self.Pa,self.Pd,self.Pk,self.Psd = None,None,None,None,None
+        self.Pi,self.Pa,self.Pd,self.Pk,self.Psd = self.probabilities_HC
 
     def try_to_associate(self,cell):
         points = cell.points_if_eaten
@@ -557,14 +544,14 @@ class CancerModel(Model):
     def xprint(self,*args):
         return
         print( "CANCER MODEL:  " +" ".join(map(str,args)))
-    def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type,agent_memory_type=None):
+    def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type,agent_memory_type,turn_off_modifiers,CC_mutation_probability,modifier_fraction,is_tumor_growing):
         self.xprint("STARTING SIMULATION !!!")
         self.counter = 0
         self.metastasis_score=0
         eat_values =  {CancerCell:1,HealthyCell:-1,CancerStemCell:5}
         assert(issubclass(cure_agent_type,CureAgent))
         self.cure_number = cure_number
-
+        self.modifier_fraction = modifier_fraction
 
         self.datacollector = DataCollector(
         model_reporters = {"FitnessFunction":fitness_funkcija,
@@ -586,7 +573,12 @@ class CancerModel(Model):
                            "TumorResiliance_Pk":cancer_resiliance_Pk,
                            "TumorResiliance_Psd":cancer_resiliance_Psd,
                            "NumberOfMutatedCells":mutated_CCs_num,
-                           "TumorCoverage":tumor_coverage
+                           "TumorCoverage":tumor_coverage,
+                           "AveragePd":average_Pd,
+                           "AveragePa":average_Pa,
+                           "AveragePi":average_Pi,
+                           "AveragePk":average_Pk,
+                           "AveragePsd":average_Psd
 
                             },
         agent_reporters={"Pi":get_Pi,"Pa":get_Pa,"Pd":get_Pd,"speed":get_speed,"Psd":get_Psd,"Pk":get_Pk,"memory_size":get_memory_size,"type":get_agent_type})
@@ -601,9 +593,9 @@ class CancerModel(Model):
         self.running = True
         for i in range(cancer_cells_number):
             pos = poss[i]
-            has_modifiers = False if i < (0.9*cancer_cells_number) else True #10 % will be with modifiers
-            c = CancerStemCell("CANCER_STEM_CELL-"+str(uuid.uuid4()),self,value = eat_values[CancerStemCell],has_modifiers=has_modifiers) \
-                if pos in pos_CSC else CancerCell("CANCER_CELL-"+str(uuid.uuid4()),self,value=eat_values[CancerCell],has_modifiers=has_modifiers)
+            has_modifiers = False if ((i < ((1-self.modifier_fraction)*cancer_cells_number)) or turn_off_modifiers is True) else True #10 % will be with modifiers
+            c = CancerStemCell("CANCER_STEM_CELL-"+str(uuid.uuid4()),self,value = eat_values[CancerStemCell],has_modifiers=has_modifiers,mutation_probability=CC_mutation_probability,grows=is_tumor_growing) \
+                if pos in pos_CSC else CancerCell("CANCER_CELL-"+str(uuid.uuid4()),self,value=eat_values[CancerCell],has_modifiers=has_modifiers,mutation_probability=CC_mutation_probability,grows=is_tumor_growing)
             self.grid.place_agent(c,pos)
             self.schedule.add(c)
 
@@ -634,7 +626,7 @@ class CancerModel(Model):
 
 
     def duplicate_mutate_or_kill(self):
-        koliko = math.ceil(percentage(5,self.cure_number)) # TODO igor javlja kako biramo procena
+        koliko = math.ceil(percentage(5,self.cure_number)) 
         cureagents = [c for c in self.schedule.agents if isinstance(c,CureAgent)]
         sortirani = sorted(cureagents, key=lambda x: x.points, reverse=True)
         poslednji = sortirani[-koliko:]
@@ -734,7 +726,12 @@ def tumor_diversity_num(model):
 
 
 def tumor_coverage(model):
-    # nek bude onih koji postoje
+    """Kod InfiniteFixed ce biti jedan, posto je uvek covered""" #TODO 04
+    #Heterogeni tumor koji evoluira(mutira) i jedan koji ne evoluira sa razlicitim procentima
+    #rezistentnosti. 20,30,40,50 # cetiri scenarija *2 (i ovaj koji ne evoluira)
+    # nek bude onih koji postoje TODO 0407
+    #i onda jedan za sve tri kategorije agenata koji raste hetergon i mutira. 
+    
     tumor_colors = [c.color for c in model.schedule.agents if isinstance(c,CancerCell)]
     rc = [c for c in all_recognized_colors(model) if c in tumor_colors]
     try:
@@ -749,7 +746,13 @@ def speed_avg(model):
         speeds+= c.speed
     return speeds/len(cures)
 
+#TODO dzinovski csv iz mean_csv foldera - svi zajedno da budu, napravi taj
+#jedan dzinovski i onda da budu razliciti fajlovi za tumor scenarije a ovi ostali tu
+
+
 def memory_size_all_avg(model):
+    #TODO proveri da li je sve ovo legitimno za memory size. zasto tako malo raste
+    #vidi koji su izabrani u logu
     cures = [c for c in model.schedule.agents if isinstance(c,CureAgent)]
     memory_sizes = [m.memory_size for m in model.schedule.agents if isinstance(m,CureAgent)]
     return sum(memory_sizes)/len(cures)
@@ -845,6 +848,29 @@ def get_Pd(agent):
         return agent.Pd
     except AttributeError:
         return None
+
+def average_Pd(model):
+    agents = [a for a in model.schedule.agents if isinstance(a,CureAgent)]
+    Pds = [a.Pd for a in model.schedule.agents if isinstance(a,CureAgent)]
+    return sum(Pds)/len(Pds)
+
+def average_Pa(model):
+    Pds = [a.Pa for a in model.schedule.agents if isinstance(a,CureAgent)]
+    return sum(Pds)/len(Pds)
+
+def average_Pi(model):
+    Pds = [a.Pi for a in model.schedule.agents if isinstance(a,CureAgent)]
+    return sum(Pds)/len(Pds)
+
+def average_Pk(model):
+    Pds = [a.Pk for a in model.schedule.agents if isinstance(a,CureAgent)]
+    return sum(Pds)/len(Pds)
+
+def average_Psd(model):
+    Pds = [a.Psd for a in model.schedule.agents if isinstance(a,CureAgent)]
+    return sum(Pds)/len(Pds)
+
+
 
 def get_speed(agent):
     try:
