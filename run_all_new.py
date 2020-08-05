@@ -5,9 +5,6 @@ from parameters import *
 import threading
 
 
-run_model_and_get_results(SAMPLE_SIZE,CureAgent,STEPS,None,False,0.001,0.5,False)
-
-
 for NA in [CureAgent,MutationBlindNanoAgent,InfiniteFixedCureAgent]:
     print (NA.__name__)
     for modifier_fraction in [0.2,0.3,0.4,0.5]:
