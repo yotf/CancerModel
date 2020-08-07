@@ -1,73 +1,27 @@
-# 1. Introduce tumour heterogeneity by randomly assigning to CC/CSC
-# subpopulations ability to reduce the rate of attachment/entrance of NAs
-# into them. Also, they should be able to reduce the killing probability
-# of NAs.
-# Implementation:
-# - all tumour cells have additional property 'modifiers' which could be a
-# list of 5 numeric values (corresponding to the association,
-# disassociation, entrance, killing probability, stop-division
-# probability). If numeric value =0 then NP's rate is not modified, if it
-# is not=0 then it modifies corresponding NP's rate.
-# - in general, CSC should have higher values of modifiers for killing and
-# division probabilities (so far it hasn't been observed that CSC are able
-# to selectively inhibit entrance of NA into them)
-
-#1. stavljam da se bira jedan od modifier-a, tako sto se izabere random
-#ime
-# i onda se indeksira to, i izabere se
-# posle NA ce traziti odredjeni indeks.
-
-
-# 2. Differentiate the antitumour effect of NAs into cytostatic (growth
-# inhibition) and cytotoxic.
-# Implementation:
-# - after internalization, we should add one more step where internalized
-# NA can either try to block cell division with some probability or kill
-# the cell with some probability
-
-
-# 3. Divide host toxicity of NAs into three categories: nonselective,
-# partially selective and strictly selective.
-# Implementation:
-# - we already have nonselective and strictly selective. However, strict
-# selectivity is more an ideal case than reality. Therefore, we should
-# replace current binary model (recognize=>try to enter / don't recognize
-# => no entrance) with more continuous one:
-#         a. At the beginning of the simulation NA’s knowledge of the environment
-# is blank so they do not recognize any type of cell-agents (same as now).
-#         b. Even if they do not recognize cell, they can try to associate/enter
-# but with much lower probability
-
-# 4. Make the role of CSC more prominent by making them more
-# drug-resistant and able to detach tumour and leave it (simplified
-# metastasis).
-# Implementation:
-# - maybe add as an additional numeric property "attachment": at each time
-# step, this numeric values is compared to a random number and if the
-# random number is smaller than 'attachment' value, CSC disappear (leave
-# tumour) and is counted somewhere as metastasis score += 1
-
-
-
-# 5. reduce the probability of receptor mutations to really small values.
-# Even if they mutate NA can enter cells (point 3 above). Remove
-# stress-induced mutation (experimental data on that are controversial, so
-# for now we should leave it out).
-
-
-#Ok, ovo sve moze sutra, bez problema. samo ga pusti i gledaj logove
-
-
-# In summary, during simulation NA agents learn to:
-#   - recognize tumour cells
-#   - learn to choose between cell killing and division stopping
-#   - tune up association/disassociation/internalization
 from mesa import Agent, Model
 from mesa.space import MultiGrid
 from mesa.time import RandomActivation
 from mesa.datacollection import DataCollector
 import numpy as np
 from collections import OrderedDict
+
+import logging
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
+
+c_handler = logging.StreamHandler()
+f_handler = logging.FileHandler('file.log')
+c_handler.setLevel(logging.WARNING)
+f_handler.setLevel(logging.DEBUG)
+
+c_format = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+f_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+c_handler.setFormatter(c_format)
+f_handler.setFormatter(f_format)
+
+# Add handlers to the logger
+logger.addHandler(c_handler)
+logger.addHandler(f_handler)
 
 
 HEALTHY_CELL_COLOR = "#a4d1a4"
@@ -110,8 +64,7 @@ class Cell(Agent):
         self.modifiers = dict.fromkeys(p_names,1)
 
     def xprint(self,*args):
-        return
-        print( "%s:  " %self.unique_id+" ".join(map(str,args))+"XXX")
+        logger.info( "%s:  " %self.unique_id+" ".join(map(str,args))+"XXX")
 
 
         
@@ -153,12 +106,11 @@ class CancerCell(Cell):
         if has_modifiers:
             pn = self.random.choice(p_names)
             self.modifiers[pn]=self.random.uniform(0.3,0.8) 
-        self.xprint("Initialized modifiers : %s" %self.modifiers)
+        logger.debug("Initialized modifiers : %s" %self.modifiers)
         self.stop_division =False
 
     def xprint(self,*args):
-        return
-        print( "%s:  " %self.unique_id+" ".join(map(str,args)))
+        logger.info( "%s:  " %self.unique_id+" ".join(map(str,args)))
 
     def step(self):
         mutate = self.random.choices([True,False],[self.mutation_probability,1-self.mutation_probability])[0]
@@ -167,14 +119,18 @@ class CancerCell(Cell):
         self.xprint("I have mutated %s times" %self.mutation_count)
         self.color = CANCER_MUTATION_COLORS[self.mutation_count]
         if self.grows:
+            self.xprint("I will try to grow..")
             will_grow = self.random.choices([True,False],[0.01,1-0.01])[0]
-            if will_grow: 
+            if will_grow:
+                self.xprint("Luck is on my side, attempting to grow..")
                 self.grow()
         
 
     def grow(self):
         if self.stop_division:
+            self.xprint("My division has been stopped, I will not grow")
             return
+        self.xprint("Growing...")
         n = self.model.grid.get_neighborhood(self.pos,moore=True,include_center = False)
         for pos in n:
             if self.model.grid.is_cell_empty(pos):
@@ -206,6 +162,7 @@ class CancerStemCell(CancerCell):
         super().step()
         detach = self.random.choices(population=[True,False],weights=[0.10,0.90])[0]
         if detach:
+            self.xprint("I am detaching from tumor")
             self.model.detach_stem_cell(self)
 
 
@@ -221,8 +178,7 @@ class CureAgent(Agent):
     KILLING_AGENT = "KILLING AGENT"
 
     def xprint(self,*args):
-        return
-        print( "%s:  " %self.unique_id+" ".join(map(str,args)))
+        logger.info( "%s:  " %self.unique_id+" ".join(map(str,args)))
     
     def __init__(self,unique_id,model,speeds,radoznalost,memory_type): 
         super(CureAgent,self).__init__(unique_id,model)
@@ -542,8 +498,7 @@ import uuid
 class CancerModel(Model):
 
     def xprint(self,*args):
-        return
-        print( "CANCER MODEL:  " +" ".join(map(str,args)))
+        logger.info( "CANCER MODEL:  " +" ".join(map(str,args)))
     def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type,agent_memory_type,turn_off_modifiers,CC_mutation_probability,modifier_fraction,is_tumor_growing):
         self.xprint("STARTING SIMULATION !!!")
         self.counter = 0

@@ -45,7 +45,10 @@ def get_maxA_for_steps_and_parameter(all_results_for_samplesize,steps,parameter)
 
 
 
-def run_model_and_get_results(sample_size,nanoagent_type,steps,agent_memory_type,turn_off_modifiers=False,CC_mutation_probability=0.001,modifier_fraction=0.1,is_tumor_growing=False):
+def run_model_and_get_results(sample_size,
+                              nanoagent_type,steps,agent_memory_type,
+                              turn_off_modifiers,CC_mutation_probability,
+                              modifier_fraction,is_tumor_growing):
     results = []
     print(steps)
     print(locals())
@@ -58,6 +61,7 @@ def run_model_and_get_results(sample_size,nanoagent_type,steps,agent_memory_type
         string_base+="_NO_MOD" if turn_off_modifiers else ""
         string_base+="_NO_CC_MUTATION" if CC_mutation_probability==0 else ""
         string_base+="__MOD-%s" %modifier_fraction
+        string_base+="_TUMOR_GROWING" if is_tumor_growing else ""
         string_base+="-%s.csv" %i
         return string_base
         
@@ -69,6 +73,7 @@ def run_model_and_get_results(sample_size,nanoagent_type,steps,agent_memory_type
             model.step()
         rez = model.datacollector.get_model_vars_dataframe()
         fname = make_string(i)
+        print(fname)
         rez.to_csv(fname)
         results.append(rez)
 
