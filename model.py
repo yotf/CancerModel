@@ -206,8 +206,8 @@ class CureAgent(Agent):
     def initialize_variables(self):
         #Kod mutacije ce ovo pokrenuti, tako da bi trebalo sve da bude u okviru onog sto mogu da urade 
         
-        self.Pi,self.Pd,self.Pa  = [self.random.choice(self.probabilities_range) for i in range(3)]
-        self.Pk,self.Psd = 0.50,0.5 #TODO za sada je fiksirano
+        self.Pi,self.Pd,self.Pa,self.Pk,self.Psd  = [self.random.choice(self.probabilities_range) for i in range(5)]
+#        self.Pk,self.Psd = 0.50,0.5 #TODO za sada je fiksirano
         self.speed = self.random.choice(self.speeds)
         self.memory_size = self.random.choice(self.memory_range) if self.MEMORY_TYPE is None else self.MEMORY_TYPE
         self.memorija = FixSizeOrderedDict(max=self.memory_size)
@@ -437,8 +437,11 @@ class InfiniteFixedCureAgent(CureAgent):
         # self.probabilities_CC = [0.6,0.5,0.6]
         # self.probabilities_HC = [0.5,0.5,0.5]
 
-        self.probabilities_CC = [0.7,0.5,0.7,0.7,0.7]
-        self.probabilities_HC = [0.5,0.5,0.5,0.5,0.5]
+        # self.probabilities_CC = [0.7,0.5,0.7,0.7,0.7]
+        # self.probabilities_HC = [0.5,0.5,0.5,0.5,0.5]
+
+        self.probabilities_CC = [0.8,0.5,0.8,0.8,0.8]
+        self.probabilities_HC = [0.4,0.5,0.4,0.4,0.4]
 
         # self.probabilities_CC = [0.8,0.5,0.8]
         # self.probabilities_HC = [0.5,0.5,0.5]
@@ -805,7 +808,6 @@ def get_Pd(agent):
         return None
 
 def average_Pd(model):
-    agents = [a for a in model.schedule.agents if isinstance(a,CureAgent)]
     Pds = [a.Pd for a in model.schedule.agents if isinstance(a,CureAgent)]
     return sum(Pds)/len(Pds)
 
