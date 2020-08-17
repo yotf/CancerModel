@@ -92,10 +92,11 @@ def add_to_color(hex_color,amount):
 
         
 class CancerCell(Cell):
-    def __init__(self,unique_id,model,value,has_modifiers,mutation_probability,grows):
+    def __init__(self,unique_id,model,value,has_modifiers,mutation_probability,grows,growth_probability):
         super().__init__(unique_id,model)
         self.mutation_count = 0
         self.mutation_probability=mutation_probability
+        self.GROWTH_PROBABILITY=growth_probability
         self.color = CANCER_CELL_COLOR
         self.points_if_eaten = value
         p_names = ["Pi","Pd","Pa","Pk","Psd"]
@@ -120,7 +121,7 @@ class CancerCell(Cell):
         self.color = CANCER_MUTATION_COLORS[self.mutation_count]
         if self.grows:
             self.xprint("I will try to grow..")
-            will_grow = self.random.choices([True,False],[0.01,1-0.01])[0]
+            will_grow = self.random.choices([True,False],[self.GROWTH_PROBABILITY,1-self.GROWTH_PROBABILITY])[0]
             if will_grow:
                 self.xprint("Luck is on my side, attempting to grow..")
                 self.grow()
@@ -134,7 +135,7 @@ class CancerCell(Cell):
         n = self.model.grid.get_neighborhood(self.pos,moore=True,include_center = False)
         for pos in n:
             if self.model.grid.is_cell_empty(pos):
-                c = self.__class__("CANCER_CELL-"+str(uuid.uuid4()),value=self.points_if_eaten,model=self.model,has_modifiers=False,mutation_probability=self.mutation_probability,grows=self.grows)
+                c = self.__class__("CANCER_CELL-"+str(uuid.uuid4()),value=self.points_if_eaten,model=self.model,has_modifiers=False,mutation_probability=self.mutation_probability,grows=self.grows,growth_probability=self.GROWTH_PROBABILITY)
                 c.modifiers =self.modifiers
                 self.xprint("Duplicated myself, new cell has modifiers: %s" %c.modifiers)
                 self.xprint("I have modifiers: %s" %c.modifiers)
@@ -150,8 +151,8 @@ class CancerCell(Cell):
 
 
 class CancerStemCell(CancerCell):
-    def __init__(self,unique_id,model,value,has_modifiers,mutation_probability,grows):
-        super().__init__(unique_id,model,value,has_modifiers,mutation_probability,grows)
+    def __init__(self,unique_id,model,value,has_modifiers,mutation_probability,grows,growth_probability):
+        super().__init__(unique_id,model,value,has_modifiers,mutation_probability,grows,growth_probability)
         self.color = CANCER_STEM_CELL_COLOR
         self.points_if_eaten = value
         self.modifiers['Pi'] = self.random.uniform(0.5,0.8)
@@ -173,15 +174,16 @@ class CureAgent(Agent):
     ASSOCIATED_1 = "associated1"
     INTERNALIZED_STATE = "internalized"
     probabilities_range = np.arange(0,1,0.1)
-    memory_range = [0,1,2,3] #TODO proveriti uvek da li je dobar range !!! 
     STOP_DIVISION_AGENT = "STOP_DIVISION_AGENT"
     KILLING_AGENT = "KILLING AGENT"
 
     def xprint(self,*args):
         logger.info( "%s:  " %self.unique_id+" ".join(map(str,args)))
     
-    def __init__(self,unique_id,model,speeds,radoznalost,memory_type): 
+    def __init__(self,unique_id,model,speeds,radoznalost,memory_type,memory_range):
         super(CureAgent,self).__init__(unique_id,model)
+        self.memory_range=memory_range
+        self.MEMORY_RANGE = range(memory_range+1) #TODO proveriti uvek da li je dobar range !!!    
         self.speeds = speeds
         self.MEMORY_TYPE = memory_type
         #on bira ovde koji je tip, i onda ce se to posle gledati
@@ -208,7 +210,7 @@ class CureAgent(Agent):
         
         self.Pi,self.Pd,self.Pa,self.Pk,self.Psd  = [self.random.choice(self.probabilities_range) for i in range(5)]
         self.speed = self.random.choice(self.speeds)
-        self.memory_size = self.random.choice(self.memory_range) if self.MEMORY_TYPE is None else self.MEMORY_TYPE
+        self.memory_size = self.random.choice(self.MEMORY_RANGE) if self.MEMORY_TYPE is None else self.MEMORY_TYPE
         self.memorija = FixSizeOrderedDict(max=self.memory_size)
         self.type = self.random.choice([self.STOP_DIVISION_AGENT,self.KILLING_AGENT])
      #   self.set_final_function_for_type()
@@ -412,7 +414,10 @@ class CureAgent(Agent):
         self.model.grid.remove_agent(self)
 
     def copy(self):
-        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost,memory_type=self.MEMORY_TYPE)
+        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,
+                     radoznalost=self.radoznalost,
+                     memory_type=self.MEMORY_TYPE,
+                     memory_range=self.memory_range)
         n.speed = self.speed
         n.Pa = self.Pa
         n.Pi = self.Pi
@@ -427,8 +432,8 @@ class CureAgent(Agent):
 
 
 class InfiniteFixedCureAgent(CureAgent):
-    def __init__(self,unique_id,model,speeds,radoznalost,memory_type):
-        super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds,radoznalost,memory_type)
+    def __init__(self,unique_id,model,speeds,radoznalost,memory_type,memory_range):
+        super(InfiniteFixedCureAgent,self).__init__(unique_id,model,speeds,radoznalost,memory_type,memory_range)
         #TODO (0.8,0.4) (0.9,0.3) 0.5 (za Pd ostaje) (ovo je sve za tumor koji ne raste ) 
         # self.probabilities_CC = [0.8,0.5,0.5]
         # self.probabilities_HC = [0.5,0.5,0.5]
@@ -439,10 +444,13 @@ class InfiniteFixedCureAgent(CureAgent):
         # self.probabilities_CC = [0.7,0.5,0.7,0.7,0.7]
         # self.probabilities_HC = [0.5,0.5,0.5,0.5,0.5]
 
-        self.probabilities_CC = [0.8,0.5,0.8,0.8,0.8]
-        self.probabilities_HC = [0.4,0.5,0.4,0.4,0.4]
+        # self.probabilities_CC = [0.8,0.5,0.8,0.8,0.8]
+        # self.probabilities_HC = [0.4,0.5,0.4,0.4,0.4]
 
-        # self.probabilities_CC = [0.8,0.5,0.8]
+        self.probabilities_CC = [0.9,0.5,0.9,0.9,0.9]
+        self.probabilities_HC = [0.3,0.5,0.3,0.3,0.3]
+
+        # self.probabilities_CC = [0.9,0.5,0.9]
         # self.probabilities_HC = [0.5,0.5,0.5]
 
 #        self.probabilities_CC = [0.9,0.5,0.9,0.9,0.9]
@@ -476,8 +484,8 @@ class InfiniteFixedCureAgent(CureAgent):
         return n
 
 class MutationBlindNanoAgent(CureAgent):
-    def __init__(self,unique_id,model,speeds,radoznalost,memory_type):
-        super(MutationBlindNanoAgent,self).__init__(unique_id,model,speeds,radoznalost,memory_type)
+    def __init__(self,unique_id,model,speeds,radoznalost,memory_type,memory_range):
+        super(MutationBlindNanoAgent,self).__init__(unique_id,model,speeds,radoznalost,memory_type,memory_range)
         self.ORIGINAL_RADOZNALOST = radoznalost
         self.radoznalost = 0 
 
@@ -498,10 +506,10 @@ class MutationBlindNanoAgent(CureAgent):
 import math
 import uuid
 class CancerModel(Model):
-
+    
     def xprint(self,*args):
         logger.info( "CANCER MODEL:  " +" ".join(map(str,args)))
-    def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type,agent_memory_type,turn_off_modifiers,CC_mutation_probability,modifier_fraction,is_tumor_growing):
+    def __init__(self,cancer_cells_number,cure_number,radoznalost,cure_agent_type,agent_memory_type,turn_off_modifiers,CC_mutation_probability,modifier_fraction,is_tumor_growing,agent_memory_range,tumor_growth_probability):
         self.xprint("STARTING SIMULATION !!!")
         self.counter = 0
         self.metastasis_score=0
@@ -551,8 +559,8 @@ class CancerModel(Model):
         for i in range(cancer_cells_number):
             pos = poss[i]
             has_modifiers = False if ((i < ((1-self.modifier_fraction)*cancer_cells_number)) or turn_off_modifiers is True) else True #10 % will be with modifiers
-            c = CancerStemCell("CANCER_STEM_CELL-"+str(uuid.uuid4()),self,value = eat_values[CancerStemCell],has_modifiers=has_modifiers,mutation_probability=CC_mutation_probability,grows=is_tumor_growing) \
-                if pos in pos_CSC else CancerCell("CANCER_CELL-"+str(uuid.uuid4()),self,value=eat_values[CancerCell],has_modifiers=has_modifiers,mutation_probability=CC_mutation_probability,grows=is_tumor_growing)
+            c = CancerStemCell("CANCER_STEM_CELL-"+str(uuid.uuid4()),self,value = eat_values[CancerStemCell],has_modifiers=has_modifiers,mutation_probability=CC_mutation_probability,grows=is_tumor_growing,growth_probability=tumor_growth_probability) \
+                if pos in pos_CSC else CancerCell("CANCER_CELL-"+str(uuid.uuid4()),self,value=eat_values[CancerCell],has_modifiers=has_modifiers,mutation_probability=CC_mutation_probability,grows=is_tumor_growing,growth_probability=tumor_growth_probability)
             self.grid.place_agent(c,pos)
             self.schedule.add(c)
 
@@ -561,7 +569,7 @@ class CancerModel(Model):
         for i in range(cure_number):
             pos = next(positions)
             self.xprint(pos)
-            a = cure_agent_type(uuid.uuid4(),self,speeds = self.speeds,radoznalost=radoznalost,memory_type=agent_memory_type) 
+            a = cure_agent_type(uuid.uuid4(),self,speeds = self.speeds,radoznalost=radoznalost,memory_type=agent_memory_type,memory_range=agent_memory_range) 
             self.grid.place_agent(a,pos)
             self.schedule.add(a)
 

@@ -44,11 +44,14 @@ def get_maxA_for_steps_and_parameter(all_results_for_samplesize,steps,parameter)
     return max(A_measures)
 
 
-
 def run_model_and_get_results(sample_size,
                               nanoagent_type,steps,agent_memory_type,
                               turn_off_modifiers,CC_mutation_probability,
-                              modifier_fraction,is_tumor_growing):
+                              modifier_fraction,is_tumor_growing,agent_memory_range,
+                              tumor_growth_probability):
+
+
+    #TODO agent_memory_type da bude ili "random" ili "fixed"
     results = []
     print(steps)
     print(locals())
@@ -57,18 +60,24 @@ def run_model_and_get_results(sample_size,
 
     def make_string(i):
         string_base = "rez_%s-%sSTEPS" %(nanoagent_type.__name__,steps)
-        string_base+="_RANDOM_MEMORY" if agent_memory_type==None else "_MEMORY%s" %agent_memory_type
+        string_base+="_RANDOM_MEMORY%s" %agent_memory_range if agent_memory_type==None else "_MEMORY%s" %agent_memory_type
         string_base+="_NO_MOD" if turn_off_modifiers else ""
         string_base+="_NO_CC_MUTATION" if CC_mutation_probability==0 else ""
         string_base+="__MOD-%s" %modifier_fraction
-        string_base+="_TUMOR_GROWING" if is_tumor_growing else ""
+        string_base+="_TUMOR_GROWING-%s" %tumor_growth_probability if is_tumor_growing else ""
         string_base+="-%s.csv" %i
         return string_base
         
     for i in range(sample_size):
         print("Running model : %s" %i)
         model = CancerModel(cancer_cells_number=CC_NUM,cure_number = NA_NUM,
-                            radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type,agent_memory_type=agent_memory_type,turn_off_modifiers=turn_off_modifiers,CC_mutation_probability=CC_mutation_probability,modifier_fraction=modifier_fraction,is_tumor_growing=is_tumor_growing)
+                            radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type,
+                            agent_memory_type=agent_memory_type,
+                            turn_off_modifiers=turn_off_modifiers,
+                            CC_mutation_probability=CC_mutation_probability,
+                            modifier_fraction=modifier_fraction,
+                            is_tumor_growing=is_tumor_growing,
+                            agent_memory_range=agent_memory_range,tumor_growth_probability=tumor_growth_probability)
         for j in range(steps):
             model.step()
         rez = model.datacollector.get_model_vars_dataframe()
