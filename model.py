@@ -477,7 +477,7 @@ class InfiniteFixedCureAgent(CureAgent):
 
     def copy(self):
         self.xprint("COPYING MYSELF")
-        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost,memory_type=self.MEMORY_TYPE)
+        n=type(self)(uuid.uuid4(),self.model,speeds = self.speeds,radoznalost=self.radoznalost,memory_type=self.MEMORY_TYPE,memory_range=self.memory_range)
         n.speed = self.speed
         n.color = self.color
         n.type = self.type
@@ -672,7 +672,7 @@ def cancer_resiliance_Psd(model):
     return get_modifier_sum(model,"Psd")
 
 def fitness_funkcija(model):
-    r = 5
+    r = 1
     CSCs = [c for c in model.schedule.agents if isinstance(c,CancerStemCell)]
     CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell)]
     HCs = [c for c in model.schedule.agents if isinstance(c,HealthyCell)]
