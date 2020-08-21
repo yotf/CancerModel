@@ -1,0 +1,31 @@
+[Simulation]
+sample_size = 200
+steps = 5000
+
+[Model]
+injection_type="random"
+injection_points=5
+mutation_percentage=5
+steps_between_mutations=5
+CC_number=300
+NA_number=500
+    
+
+[Tumor]
+mutation_probability=0.01
+modifier_fraction=0.1
+turn_off_modifiers=false
+is_growing=true
+growth_probability=0.01
+
+[Agent]
+curiosity=0.5
+memory_type= "random"
+modifiers=true
+memory_limit= 10
+  [probabilities_limit]
+    Psd=1
+    Pk=1
+    Pi=1
+    Pa=1
+    Pd=1

@@ -210,7 +210,7 @@ class CureAgent(Agent):
         
         self.Pi,self.Pd,self.Pa,self.Pk,self.Psd  = [self.random.choice(self.probabilities_range) for i in range(5)]
         self.speed = self.random.choice(self.speeds)
-        self.memory_size = self.random.choice(self.MEMORY_RANGE) if self.MEMORY_TYPE is None else self.MEMORY_TYPE
+        self.memory_size = self.random.choice(self.MEMORY_RANGE) if self.MEMORY_TYPE=="random" else self.MEMORY_TYPE
         self.memorija = FixSizeOrderedDict(max=self.memory_size)
         self.type = self.random.choice([self.STOP_DIVISION_AGENT,self.KILLING_AGENT])
      #   self.set_final_function_for_type()
@@ -672,7 +672,7 @@ def cancer_resiliance_Psd(model):
     return get_modifier_sum(model,"Psd")
 
 def fitness_funkcija(model):
-    r = 1
+    r = 5
     CSCs = [c for c in model.schedule.agents if isinstance(c,CancerStemCell)]
     CCs = [c for c in model.schedule.agents if isinstance(c,CancerCell)]
     HCs = [c for c in model.schedule.agents if isinstance(c,HealthyCell)]

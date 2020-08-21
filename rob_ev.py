@@ -44,19 +44,31 @@ def get_maxA_for_steps_and_parameter(all_results_for_samplesize,steps,parameter)
     return max(A_measures)
 
 
-def run_model_and_get_results(sample_size,
-                              nanoagent_type,steps,agent_memory_type,
-                              turn_off_modifiers,CC_mutation_probability,
-                              modifier_fraction,is_tumor_growing,agent_memory_range,
-                              tumor_growth_probability):
+def run_model_and_get_results(config,NA):
 
 
     #TODO agent_memory_type da bude ili "random" ili "fixed"
     results = []
+
+    import sys
+    sample_size=config["Simulation"]["sample_size"]
+    steps=config["Simulation"]["steps"]
+    agent_memory_type = config["Agent"]["memory_type"]
+    turn_off_modifiers= config["Tumor"]["turn_off_modifiers"]
+    CC_mutation_probability= config["Tumor"]["mutation_probability"]
+    modifier_fraction= config["Tumor"]["modifier_fraction"]
+    is_tumor_growing=config["Tumor"]["is_growing"]
+    agent_memory_range=config["Agent"]["memory_limit"]
+    cancer_cell_number = config["Model"]["CC_number"]
+    cure_number=config["Model"]["NA_number"]
+    curiosity= config["Agent"]["curiosity"]
+    tumor_growth_probability=config["Tumor"]["growth_probability"]
+
     print(steps)
     print(locals())
     print("STATEMACHINE BRANCH")
     print("Sample size is:   %s" %sample_size)
+    
 
     def make_string(i):
         string_base = "rez_%s-%sSTEPS" %(nanoagent_type.__name__,steps)
@@ -70,8 +82,8 @@ def run_model_and_get_results(sample_size,
         
     for i in range(sample_size):
         print("Running model : %s" %i)
-        model = CancerModel(cancer_cells_number=CC_NUM,cure_number = NA_NUM,
-                            radoznalost=NA_CURIOSITY,cure_agent_type = nanoagent_type,
+        model = CancerModel(cancer_cells_number=cancer_cell_number,cure_number = cure_number,
+                            radoznalost=curiosity,cure_agent_type = nanoagent_type,
                             agent_memory_type=agent_memory_type,
                             turn_off_modifiers=turn_off_modifiers,
                             CC_mutation_probability=CC_mutation_probability,
